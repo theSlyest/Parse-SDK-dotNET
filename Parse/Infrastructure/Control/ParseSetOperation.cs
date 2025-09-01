@@ -4,54 +4,55 @@ using Parse.Abstractions.Infrastructure;
 using Parse.Abstractions.Infrastructure.Control;
 using Parse.Infrastructure.Data;
 
-namespace Parse.Infrastructure.Control;
-
-public class ParseSetOperation : IParseFieldOperation
+namespace Parse.Infrastructure.Control
 {
-    public ParseSetOperation(object value)
+    public class ParseSetOperation : IParseFieldOperation
     {
-        Value = value;
-    }
-
-    // Replace Encode with ConvertToJSON
-    public object ConvertToJSON(IServiceHub serviceHub = default)
-    {
-        if (serviceHub == null)
+        public ParseSetOperation(object value)
         {
-            throw new InvalidOperationException("ServiceHub is required to encode the value.");
+            Value = value;
         }
 
-        var encodedValue = PointerOrLocalIdEncoder.Instance.Encode(Value, serviceHub);
-
-        // For simple values, return them directly (avoid unnecessary __op)
-        if (Value != null && (Value.GetType().IsPrimitive || Value is string))
+        // Replace Encode with ConvertToJSON
+        public object ConvertToJSON(IServiceHub serviceHub = default)
         {
-            return Value ;
+            if (serviceHub == null)
+            {
+                throw new InvalidOperationException("ServiceHub is required to encode the value.");
+            }
+
+            var encodedValue = PointerOrLocalIdEncoder.Instance.Encode(Value, serviceHub);
+
+            // For simple values, return them directly (avoid unnecessary __op)
+            if (Value != null && (Value.GetType().IsPrimitive || Value is string))
+            {
+                return Value ;
+            }
+
+            // If the encoded value is a dictionary, return it directly
+            if (encodedValue is IDictionary<string, object> dictionary)
+            {
+                return dictionary;
+            }
+
+            // Default behavior for unsupported types
+            throw new ArgumentException($"Unsupported type for encoding: {Value?.GetType()?.FullName}");
         }
 
-        // If the encoded value is a dictionary, return it directly
-        if (encodedValue is IDictionary<string, object> dictionary)
+
+
+        public IParseFieldOperation MergeWithPrevious(IParseFieldOperation previous)
         {
-            return dictionary;
+            // Set operation always overrides previous operations
+            return this;
         }
 
-        // Default behavior for unsupported types
-        throw new ArgumentException($"Unsupported type for encoding: {Value?.GetType()?.FullName}");
+        public object Apply(object oldValue, string key)
+        {
+            // Set operation always sets the field to the specified value
+            return Value;
+        }
+
+        public object Value { get; private set; }
     }
-
-
-
-    public IParseFieldOperation MergeWithPrevious(IParseFieldOperation previous)
-    {
-        // Set operation always overrides previous operations
-        return this;
-    }
-
-    public object Apply(object oldValue, string key)
-    {
-        // Set operation always sets the field to the specified value
-        return Value;
-    }
-
-    public object Value { get; private set; }
 }

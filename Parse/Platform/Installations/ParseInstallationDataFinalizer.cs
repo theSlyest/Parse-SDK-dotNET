@@ -1,17 +1,18 @@
 using System.Threading.Tasks;
 using Parse.Abstractions.Platform.Installations;
 
-namespace Parse.Platform.Installations;
-
-/// <summary>
-/// Controls the device information.
-/// </summary>
-public class ParseInstallationDataFinalizer : IParseInstallationDataFinalizer
+namespace Parse.Platform.Installations
 {
-    public Task FinalizeAsync(ParseInstallation installation)
+    /// <summary>
+    /// Controls the device information.
+    /// </summary>
+    public class ParseInstallationDataFinalizer : IParseInstallationDataFinalizer
     {
-        return Task.FromResult<object>(null);
-    }
+        public Task FinalizeAsync(ParseInstallation installation)
+        {
+            return Task.FromResult<object>(null);
+        }
 
-    public void Initialize() { }
+        public void Initialize() { }
+    }
 }

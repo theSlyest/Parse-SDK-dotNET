@@ -4,16 +4,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using Parse.Abstractions.Infrastructure;
 
-namespace Parse.Abstractions.Platform.Cloud;
-
-public interface IParseCloudCodeController
+namespace Parse.Abstractions.Platform.Cloud
 {
-    Task<T> CallFunctionAsync<T>(
-        string name,
-        IDictionary<string, object> parameters,
-        string sessionToken,
-        IServiceHub serviceHub,
-        CancellationToken cancellationToken = default,
-    IProgress<IDataTransferLevel> uploadProgress = null,
-    IProgress<IDataTransferLevel> downloadProgress = null);
+    public interface IParseCloudCodeController
+    {
+        Task<T> CallFunctionAsync<T>(
+            string name,
+            IDictionary<string, object> parameters,
+            string sessionToken,
+            IServiceHub serviceHub,
+            CancellationToken cancellationToken = default,
+        IProgress<IDataTransferLevel> uploadProgress = null,
+        IProgress<IDataTransferLevel> downloadProgress = null);
+    }
 }

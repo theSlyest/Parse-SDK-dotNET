@@ -6,30 +6,32 @@ using Parse.Abstractions.Platform.Push;
 using Parse.Abstractions.Platform.Users;
 using Parse.Infrastructure.Execution;
 
-namespace Parse.Platform.Push;
-internal class ParsePushController : IParsePushController
+namespace Parse.Platform.Push
 {
-    private IParseCommandRunner CommandRunner { get; }
-    private IParseCurrentUserController CurrentUserController { get; }
-
-    public ParsePushController(IParseCommandRunner commandRunner, IParseCurrentUserController currentUserController)
+    internal class ParsePushController : IParsePushController
     {
-        CommandRunner = commandRunner;
-        CurrentUserController = currentUserController;
-    }
+        private IParseCommandRunner CommandRunner { get; }
+        private IParseCurrentUserController CurrentUserController { get; }
 
-    public async Task SendPushNotificationAsync(IPushState state, IServiceHub serviceHub, CancellationToken cancellationToken = default)
-    {
-        // Fetch the current session token
-        var sessionToken = await CurrentUserController.GetCurrentSessionTokenAsync(serviceHub, cancellationToken).ConfigureAwait(false);
+        public ParsePushController(IParseCommandRunner commandRunner, IParseCurrentUserController currentUserController)
+        {
+            CommandRunner = commandRunner;
+            CurrentUserController = currentUserController;
+        }
 
-        // Create the push command and execute it
-        var pushCommand = new ParseCommand(
-            "push",
-            method: "POST",
-            sessionToken: sessionToken,
-            data: ParsePushEncoder.Instance.Encode(state));
+        public async Task SendPushNotificationAsync(IPushState state, IServiceHub serviceHub, CancellationToken cancellationToken = default)
+        {
+            // Fetch the current session token
+            var sessionToken = await CurrentUserController.GetCurrentSessionTokenAsync(serviceHub, cancellationToken).ConfigureAwait(false);
 
-        await CommandRunner.RunCommandAsync(pushCommand, cancellationToken: cancellationToken).ConfigureAwait(false);
+            // Create the push command and execute it
+            var pushCommand = new ParseCommand(
+                "push",
+                method: "POST",
+                sessionToken: sessionToken,
+                data: ParsePushEncoder.Instance.Encode(state));
+
+            await CommandRunner.RunCommandAsync(pushCommand, cancellationToken: cancellationToken).ConfigureAwait(false);
+        }
     }
 }

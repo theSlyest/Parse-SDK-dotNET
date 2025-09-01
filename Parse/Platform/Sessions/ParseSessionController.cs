@@ -9,54 +9,55 @@ using Parse.Abstractions.Platform.Objects;
 using Parse.Infrastructure.Execution;
 using Parse.Infrastructure.Data;
 
-namespace Parse.Platform.Sessions;
-
-public class ParseSessionController : IParseSessionController
+namespace Parse.Platform.Sessions
 {
-    IParseCommandRunner CommandRunner { get; }
-
-    IParseDataDecoder Decoder { get; }
-
-    public ParseSessionController(IParseCommandRunner commandRunner, IParseDataDecoder decoder) => (CommandRunner, Decoder) = (commandRunner, decoder);
-
-    public async Task<IObjectState> GetSessionAsync(string sessionToken, IServiceHub serviceHub, CancellationToken cancellationToken = default)
+    public class ParseSessionController : IParseSessionController
     {
-        var result = await CommandRunner.RunCommandAsync(
-            new ParseCommand("sessions/me", method: "GET", sessionToken: sessionToken, data: null),
-            cancellationToken: cancellationToken
-        );
+        IParseCommandRunner CommandRunner { get; }
 
-        return ParseObjectCoder.Instance.Decode(result.Item2, Decoder, serviceHub);
-    }
+        IParseDataDecoder Decoder { get; }
 
+        public ParseSessionController(IParseCommandRunner commandRunner, IParseDataDecoder decoder) => (CommandRunner, Decoder) = (commandRunner, decoder);
 
-    public Task RevokeAsync(string sessionToken, CancellationToken cancellationToken = default)
-    {
-        return CommandRunner
-            .RunCommandAsync(new ParseCommand("logout", method: "POST", sessionToken: sessionToken, data: new Dictionary<string, object> { }), cancellationToken: cancellationToken);
-    }
+        public async Task<IObjectState> GetSessionAsync(string sessionToken, IServiceHub serviceHub, CancellationToken cancellationToken = default)
+        {
+            var result = await CommandRunner.RunCommandAsync(
+                new ParseCommand("sessions/me", method: "GET", sessionToken: sessionToken, data: null),
+                cancellationToken: cancellationToken
+            );
 
-    public async Task<IObjectState> UpgradeToRevocableSessionAsync(
-       string sessionToken,
-       IServiceHub serviceHub,
-       CancellationToken cancellationToken = default)
-    {
-        var command = new ParseCommand(
-            "upgradeToRevocableSession",
-            method: "POST",
-            sessionToken: sessionToken,
-            data: new Dictionary<string, object>()
-        );
-
-        var response = await CommandRunner.RunCommandAsync(command,null,null, cancellationToken).ConfigureAwait(false);
-        var decoded = ParseObjectCoder.Instance.Decode(response.Item2, Decoder, serviceHub);
-
-        return decoded;
-    }
+            return ParseObjectCoder.Instance.Decode(result.Item2, Decoder, serviceHub);
+        }
 
 
-    public bool IsRevocableSessionToken(string sessionToken)
-    {
-        return sessionToken.Contains("r:");
+        public Task RevokeAsync(string sessionToken, CancellationToken cancellationToken = default)
+        {
+            return CommandRunner
+                .RunCommandAsync(new ParseCommand("logout", method: "POST", sessionToken: sessionToken, data: new Dictionary<string, object> { }), cancellationToken: cancellationToken);
+        }
+
+        public async Task<IObjectState> UpgradeToRevocableSessionAsync(
+           string sessionToken,
+           IServiceHub serviceHub,
+           CancellationToken cancellationToken = default)
+        {
+            var command = new ParseCommand(
+                "upgradeToRevocableSession",
+                method: "POST",
+                sessionToken: sessionToken,
+                data: new Dictionary<string, object>()
+            );
+
+            var response = await CommandRunner.RunCommandAsync(command,null,null, cancellationToken).ConfigureAwait(false);
+            var decoded = ParseObjectCoder.Instance.Decode(response.Item2, Decoder, serviceHub);
+
+            return decoded;
+        }
+
+
+        public bool IsRevocableSessionToken(string sessionToken)
+        {
+            return sessionToken.Contains("r:");
+        }
     }
 }

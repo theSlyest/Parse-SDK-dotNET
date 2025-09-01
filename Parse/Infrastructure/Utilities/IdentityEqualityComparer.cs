@@ -1,22 +1,23 @@
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 
-namespace Parse.Infrastructure.Utilities;
-
-/// <summary>
-/// An equality comparer that uses the object identity (i.e. ReferenceEquals)
-/// rather than .Equals, allowing identity to be used for checking equality in
-/// ISets and IDictionaries.
-/// </summary>
-public class IdentityEqualityComparer<T> : IEqualityComparer<T>
+namespace Parse.Infrastructure.Utilities
 {
-    public bool Equals(T x, T y)
+    /// <summary>
+    /// An equality comparer that uses the object identity (i.e. ReferenceEquals)
+    /// rather than .Equals, allowing identity to be used for checking equality in
+    /// ISets and IDictionaries.
+    /// </summary>
+    public class IdentityEqualityComparer<T> : IEqualityComparer<T>
     {
-        return ReferenceEquals(x, y);
-    }
+        public bool Equals(T x, T y)
+        {
+            return ReferenceEquals(x, y);
+        }
 
-    public int GetHashCode(T obj)
-    {
-        return RuntimeHelpers.GetHashCode(obj);
+        public int GetHashCode(T obj)
+        {
+            return RuntimeHelpers.GetHashCode(obj);
+        }
     }
 }

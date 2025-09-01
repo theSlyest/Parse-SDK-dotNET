@@ -1,14 +1,15 @@
 ﻿using Parse.Abstractions.Infrastructure;
 
-namespace Parse;
-
-public static class RoleServiceExtensions
+namespace Parse
 {
-    /// <summary>
-    /// Gets a <see cref="ParseQuery{ParseRole}"/> over the Role collection.
-    /// </summary>
-    public static ParseQuery<ParseRole> GetRoleQuery(this IServiceHub serviceHub)
+    public static class RoleServiceExtensions
     {
-        return serviceHub.GetQuery<ParseRole>();
+        /// <summary>
+        /// Gets a <see cref="ParseQuery{ParseRole}"/> over the Role collection.
+        /// </summary>
+        public static ParseQuery<ParseRole> GetRoleQuery(this IServiceHub serviceHub)
+        {
+            return serviceHub.GetQuery<ParseRole>();
+        }
     }
 }

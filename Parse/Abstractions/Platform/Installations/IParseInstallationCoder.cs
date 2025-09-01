@@ -2,13 +2,14 @@ using System.Collections.Generic;
 using Parse.Abstractions.Infrastructure;
 using Parse.Abstractions.Platform.Objects;
 
-namespace Parse.Abstractions.Platform.Installations;
-
-// TODO: (richardross) once coder is refactored, make this extend IParseObjectCoder.
-
-public interface IParseInstallationCoder
+namespace Parse.Abstractions.Platform.Installations
 {
-    IDictionary<string, object> Encode(ParseInstallation installation);
+    // TODO: (richardross) once coder is refactored, make this extend IParseObjectCoder.
 
-    ParseInstallation Decode(IDictionary<string, object> data, IServiceHub serviceHub);
+    public interface IParseInstallationCoder
+    {
+        IDictionary<string, object> Encode(ParseInstallation installation);
+
+        ParseInstallation Decode(IDictionary<string, object> data, IServiceHub serviceHub);
+    }
 }

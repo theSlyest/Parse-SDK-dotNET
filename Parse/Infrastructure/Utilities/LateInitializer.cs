@@ -6,85 +6,86 @@ using System.Linq;
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Parse.Tests")]
 #endif
 
-namespace Parse.Infrastructure.Utilities;
-
-/// <summary>
-/// A wrapper over a dictionary from value generator to value. Uses the fact that lambda expressions in a specific location are cached, so the cost of instantiating a generator delegate is only incurred once at the call site of <see cref="GetValue{TData}(Func{TData})"/> and subsequent calls look up the result of the first generation from the dictionary based on the hash of the generator delegate. This is effectively a lazy initialization mechanism that allows the member type to remain unchanged.
-/// </summary>
-internal class LateInitializer
+namespace Parse.Infrastructure.Utilities
 {
-    Lazy<Dictionary<Func<object>, object>> Storage { get; set; } = new Lazy<Dictionary<Func<object>, object>> { };
-
-    public TData GetValue<TData>(Func<TData> generator)
+    /// <summary>
+    /// A wrapper over a dictionary from value generator to value. Uses the fact that lambda expressions in a specific location are cached, so the cost of instantiating a generator delegate is only incurred once at the call site of <see cref="GetValue{TData}(Func{TData})"/> and subsequent calls look up the result of the first generation from the dictionary based on the hash of the generator delegate. This is effectively a lazy initialization mechanism that allows the member type to remain unchanged.
+    /// </summary>
+    internal class LateInitializer
     {
-        lock (generator)
-        {
-            if (Storage.IsValueCreated && Storage.Value.Keys.OfType<Func<TData>>().FirstOrDefault() is { } key && Storage.Value.TryGetValue(key as Func<object>, out object data))
-            {
-                return (TData) data;
-            }
-            else
-            {
-                TData result = generator.Invoke();
+        Lazy<Dictionary<Func<object>, object>> Storage { get; set; } = new Lazy<Dictionary<Func<object>, object>> { };
 
-                Storage.Value.Add(generator as Func<object>, result);
-                return result;
-            }
-        }
-    }
-
-    public bool ClearValue<TData>()
-    {
-        lock (Storage)
+        public TData GetValue<TData>(Func<TData> generator)
         {
-            if (Storage.IsValueCreated && Storage.Value.Keys.OfType<Func<TData>>().FirstOrDefault() is { } key)
+            lock (generator)
             {
-                lock (key)
+                if (Storage.IsValueCreated && Storage.Value.Keys.OfType<Func<TData>>().FirstOrDefault() is { } key && Storage.Value.TryGetValue(key as Func<object>, out object data))
                 {
-                    Storage.Value.Remove(key as Func<object>);
-                    return true;
+                    return (TData) data;
+                }
+                else
+                {
+                    TData result = generator.Invoke();
+
+                    Storage.Value.Add(generator as Func<object>, result);
+                    return result;
                 }
             }
         }
 
-        return false;
-    }
-
-    public bool SetValue<TData>(TData value, bool initialize = true)
-    {
-        lock (Storage)
+        public bool ClearValue<TData>()
         {
-            if (Storage.IsValueCreated && Storage.Value.Keys.OfType<Func<TData>>().FirstOrDefault() is { } key)
+            lock (Storage)
             {
-                lock (key)
+                if (Storage.IsValueCreated && Storage.Value.Keys.OfType<Func<TData>>().FirstOrDefault() is { } key)
                 {
-                    Storage.Value[key as Func<object>] = value;
+                    lock (key)
+                    {
+                        Storage.Value.Remove(key as Func<object>);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public bool SetValue<TData>(TData value, bool initialize = true)
+        {
+            lock (Storage)
+            {
+                if (Storage.IsValueCreated && Storage.Value.Keys.OfType<Func<TData>>().FirstOrDefault() is { } key)
+                {
+                    lock (key)
+                    {
+                        Storage.Value[key as Func<object>] = value;
+                        return true;
+                    }
+                }
+                else if (initialize)
+                {
+                    Storage.Value[new Func<TData>(() => value) as Func<object>] = value;
                     return true;
                 }
             }
-            else if (initialize)
-            {
-                Storage.Value[new Func<TData>(() => value) as Func<object>] = value;
-                return true;
-            }
+
+            return false;
         }
 
-        return false;
-    }
-
-    public bool Reset()
-    {
-        lock (Storage)
+        public bool Reset()
         {
-            if (Storage.IsValueCreated)
+            lock (Storage)
             {
-                Storage.Value.Clear();
-                return true;
+                if (Storage.IsValueCreated)
+                {
+                    Storage.Value.Clear();
+                    return true;
+                }
             }
+
+            return false;
         }
 
-        return false;
+        public bool Used => Storage.IsValueCreated;
     }
-
-    public bool Used => Storage.IsValueCreated;
 }

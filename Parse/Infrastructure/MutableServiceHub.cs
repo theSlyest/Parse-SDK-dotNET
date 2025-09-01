@@ -27,91 +27,95 @@ using Parse.Platform.Queries;
 using Parse.Platform.Sessions;
 using Parse.Platform.Users;
 
-namespace Parse.Infrastructure;
-
-/// <summary>
-/// A service hub that is mutable.
-/// </summary>
-/// <remarks>This class is not thread safe; the mutability is allowed for the purposes of overriding values before it is used, as opposed to modifying it while it is in use.</remarks>
-public class MutableServiceHub : IMutableServiceHub
+namespace Parse.Infrastructure
 {
-    public IServerConnectionData ServerConnectionData { get; set; }
-    public ILiveQueryServerConnectionData LiveQueryServerConnectionData { get; set; }
-    public IMetadataController MetadataController { get; set; }
-
-    public IServiceHubCloner Cloner { get; set; }
-
-    public IWebClient WebClient { get; set; }
-    public ICacheController CacheController { get; set; }
-    public IParseObjectClassController ClassController { get; set; }
-
-    public IParseDataDecoder Decoder { get; set; }
-
-    public IParseInstallationController InstallationController { get; set; }
-    public IParseCommandRunner CommandRunner { get; set; }
-    public IWebSocketClient WebSocketClient { get; set; }
-
-    public IParseCloudCodeController CloudCodeController { get; set; }
-    public IParseConfigurationController ConfigurationController { get; set; }
-    public IParseFileController FileController { get; set; }
-    public IParseObjectController ObjectController { get; set; }
-    public IParseQueryController QueryController { get; set; }
-    public IParseLiveQueryController LiveQueryController { get; set; }
-    public IParseSessionController SessionController { get; set; }
-    public IParseUserController UserController { get; set; }
-    public IParseCurrentUserController CurrentUserController { get; set; }
-
-    public IParseAnalyticsController AnalyticsController { get; set; }
-
-    public IParseInstallationCoder InstallationCoder { get; set; }
-
-    public IParsePushChannelsController PushChannelsController { get; set; }
-    public IParsePushController PushController { get; set; }
-    public IParseCurrentInstallationController CurrentInstallationController { get; set; }
-    public IParseInstallationDataFinalizer InstallationDataFinalizer { get; set; }
-
-    public MutableServiceHub SetDefaults(IServerConnectionData connectionData = default, ILiveQueryServerConnectionData liveQueryConnectionData = default)
+    /// <summary>
+    /// A service hub that is mutable.
+    /// </summary>
+    /// <remarks>This class is not thread safe; the mutability is allowed for the purposes of overriding values before it is used, as opposed to modifying it while it is in use.</remarks>
+    public class MutableServiceHub : IMutableServiceHub
     {
-        ServerConnectionData ??= connectionData;
-        LiveQueryServerConnectionData ??= liveQueryConnectionData;
-        MetadataController ??= new MetadataController
+        public IServerConnectionData ServerConnectionData { get; set; }
+        public ILiveQueryServerConnectionData LiveQueryServerConnectionData { get; set; }
+        public IMetadataController MetadataController { get; set; }
+
+        public IServiceHubCloner Cloner { get; set; }
+
+        public IWebClient WebClient { get; set; }
+        public ICacheController CacheController { get; set; }
+        public IParseObjectClassController ClassController { get; set; }
+
+        public IParseDataDecoder Decoder { get; set; }
+
+        public IParseInstallationController InstallationController { get; set; }
+        public IParseCommandRunner CommandRunner { get; set; }
+        public IWebSocketClient WebSocketClient { get; set; }
+
+        public IParseCloudCodeController CloudCodeController { get; set; }
+        public IParseConfigurationController ConfigurationController { get; set; }
+        public IParseFileController FileController { get; set; }
+        public IParseObjectController ObjectController { get; set; }
+        public IParseQueryController QueryController { get; set; }
+        public IParseLiveQueryController LiveQueryController { get; set; }
+        public IParseSessionController SessionController { get; set; }
+        public IParseUserController UserController { get; set; }
+        public IParseCurrentUserController CurrentUserController { get; set; }
+
+        public IParseAnalyticsController AnalyticsController { get; set; }
+
+        public IParseInstallationCoder InstallationCoder { get; set; }
+
+        public IParsePushChannelsController PushChannelsController { get; set; }
+        public IParsePushController PushController { get; set; }
+        public IParseCurrentInstallationController CurrentInstallationController { get; set; }
+        public IParseInstallationDataFinalizer InstallationDataFinalizer { get; set; }
+
+        public MutableServiceHub SetDefaults(IServerConnectionData connectionData = default, ILiveQueryServerConnectionData liveQueryConnectionData = default)
         {
-            EnvironmentData = EnvironmentData.Inferred,
-            HostManifestData = HostManifestData.Inferred
-        };
+            ServerConnectionData ??= connectionData;
+            LiveQueryServerConnectionData ??= liveQueryConnectionData;
+            MetadataController ??= new MetadataController
+            {
+                EnvironmentData = EnvironmentData.Inferred,
+                HostManifestData = HostManifestData.Inferred
+            };
 
-        Cloner ??= new ConcurrentUserServiceHubCloner { };
+            Cloner ??= new ConcurrentUserServiceHubCloner { };
 
-        WebClient ??= new UniversalWebClient { };
-        CacheController ??= new CacheController { };
-        ClassController ??= new ParseObjectClassController { };
+            WebClient ??= new UniversalWebClient { };
+            CacheController ??= new CacheController { };
+            ClassController ??= new ParseObjectClassController { };
 
-        Decoder ??= new ParseDataDecoder(ClassController);
+            Decoder ??= new ParseDataDecoder(ClassController);
 
-        InstallationController ??= new ParseInstallationController(CacheController);
-        CommandRunner ??= new ParseCommandRunner(WebClient, InstallationController, MetadataController, ServerConnectionData, new Lazy<IParseUserController>(() => UserController));
+            InstallationController ??= new ParseInstallationController(CacheController);
+            CommandRunner ??= new ParseCommandRunner(WebClient, InstallationController, MetadataController, ServerConnectionData, new Lazy<IParseUserController>(() => UserController));
 
-        CloudCodeController ??= new ParseCloudCodeController(CommandRunner, Decoder);
-        ConfigurationController ??= new ParseConfigurationController(CommandRunner, CacheController, Decoder);
-        FileController ??= new ParseFileController(CommandRunner);
-        ObjectController ??= new ParseObjectController(CommandRunner, Decoder, ServerConnectionData);
-        QueryController ??= new ParseQueryController(CommandRunner, Decoder);
-        SessionController ??= new ParseSessionController(CommandRunner, Decoder);
-        UserController ??= new ParseUserController(CommandRunner, Decoder);
-        CurrentUserController ??= new ParseCurrentUserController(CacheController, ClassController, Decoder);
+            CloudCodeController ??= new ParseCloudCodeController(CommandRunner, Decoder);
+            ConfigurationController ??= new ParseConfigurationController(CommandRunner, CacheController, Decoder);
+            FileController ??= new ParseFileController(CommandRunner);
+            ObjectController ??= new ParseObjectController(CommandRunner, Decoder, ServerConnectionData);
+            QueryController ??= new ParseQueryController(CommandRunner, Decoder);
+            SessionController ??= new ParseSessionController(CommandRunner, Decoder);
+            UserController ??= new ParseUserController(CommandRunner, Decoder);
+            CurrentUserController ??= new ParseCurrentUserController(CacheController, ClassController, Decoder);
 
-        AnalyticsController ??= new ParseAnalyticsController(CommandRunner);
+            AnalyticsController ??= new ParseAnalyticsController(CommandRunner);
 
-        InstallationCoder ??= new ParseInstallationCoder(Decoder, ClassController);
+            InstallationCoder ??= new ParseInstallationCoder(Decoder, ClassController);
 
-        PushController ??= new ParsePushController(CommandRunner, CurrentUserController);
-        CurrentInstallationController ??= new ParseCurrentInstallationController(InstallationController, CacheController, InstallationCoder, ClassController);
-        PushChannelsController ??= new ParsePushChannelsController(CurrentInstallationController);
-        InstallationDataFinalizer ??= new ParseInstallationDataFinalizer { };
+            PushController ??= new ParsePushController(CommandRunner, CurrentUserController);
+            CurrentInstallationController ??= new ParseCurrentInstallationController(InstallationController, CacheController, InstallationCoder, ClassController);
+            PushChannelsController ??= new ParsePushChannelsController(CurrentInstallationController);
+            InstallationDataFinalizer ??= new ParseInstallationDataFinalizer { };
 
-        WebSocketClient ??= LiveQueryServerConnectionData is null ? null : new TextWebSocketClient(LiveQueryServerConnectionData.MessageBufferSize);
-        LiveQueryController ??= LiveQueryServerConnectionData is null ? null : new ParseLiveQueryController(LiveQueryServerConnectionData.TimeOut, WebSocketClient, Decoder);
+            if (LiveQueryServerConnectionData is not null)
+            {
+                WebSocketClient ??= new TextWebSocketClient(LiveQueryServerConnectionData.MessageBufferSize);
+                LiveQueryController ??= new ParseLiveQueryController(LiveQueryServerConnectionData.Timeout, WebSocketClient, Decoder);
+            }
 
-        return this;
+            return this;
+        }
     }
 }

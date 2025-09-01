@@ -1,21 +1,22 @@
 using System;
 
-namespace Parse.Infrastructure.Utilities;
-
-internal static class ThreadingUtilities
+namespace Parse.Infrastructure.Utilities
 {
-    public static void Lock(ref object @lock, Action operationToLock)
+    internal static class ThreadingUtilities
     {
-        lock (@lock)
-            operationToLock();
-    }
+        public static void Lock(ref object @lock, Action operationToLock)
+        {
+            lock (@lock)
+                operationToLock();
+        }
 
-    public static TResult Lock<TResult>(ref object @lock, Func<TResult> operationToLock)
-    {
-        TResult result = default;
-        lock (@lock)
-            result = operationToLock();
+        public static TResult Lock<TResult>(ref object @lock, Func<TResult> operationToLock)
+        {
+            TResult result = default;
+            lock (@lock)
+                result = operationToLock();
 
-        return result;
+            return result;
+        }
     }
 }

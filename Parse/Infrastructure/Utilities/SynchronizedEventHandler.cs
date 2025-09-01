@@ -4,67 +4,68 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Parse.Infrastructure.Utilities;
-
-/// <summary>
-/// Represents an event handler that calls back from the synchronization context
-/// that subscribed.
-/// <typeparam name="T">Should look like an EventArgs, but may not inherit EventArgs if T is implemented by the Windows team.</typeparam>
-/// </summary>
-public class SynchronizedEventHandler<T>
+namespace Parse.Infrastructure.Utilities
 {
-    LinkedList<Tuple<Delegate, TaskFactory>> Callbacks { get; } = new LinkedList<Tuple<Delegate, TaskFactory>> { };
-
-    public void Add(Delegate target)
+    /// <summary>
+    /// Represents an event handler that calls back from the synchronization context
+    /// that subscribed.
+    /// <typeparam name="T">Should look like an EventArgs, but may not inherit EventArgs if T is implemented by the Windows team.</typeparam>
+    /// </summary>
+    public class SynchronizedEventHandler<T>
     {
-        lock (Callbacks)
+        LinkedList<Tuple<Delegate, TaskFactory>> Callbacks { get; } = new LinkedList<Tuple<Delegate, TaskFactory>> { };
+
+        public void Add(Delegate target)
         {
-            TaskFactory factory = SynchronizationContext.Current is { } ? new TaskFactory(CancellationToken.None, TaskCreationOptions.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.FromCurrentSynchronizationContext()) : Task.Factory;
-
-            foreach (Delegate invocation in target.GetInvocationList())
+            lock (Callbacks)
             {
-                Callbacks.AddLast(new Tuple<Delegate, TaskFactory>(invocation, factory));
-            }
-        }
-    }
+                TaskFactory factory = SynchronizationContext.Current is { } ? new TaskFactory(CancellationToken.None, TaskCreationOptions.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.FromCurrentSynchronizationContext()) : Task.Factory;
 
-    public void Remove(Delegate target)
-    {
-        lock (Callbacks)
-        {
-            if (Callbacks.Count == 0)
-            {
-                return;
-            }
-
-            foreach (Delegate invocation in target.GetInvocationList())
-            {
-                LinkedListNode<Tuple<Delegate, TaskFactory>> node = Callbacks.First;
-
-                while (node != null)
+                foreach (Delegate invocation in target.GetInvocationList())
                 {
-                    if (node.Value.Item1 == invocation)
-                    {
-                        Callbacks.Remove(node);
-                        break;
-                    }
-                    node = node.Next;
+                    Callbacks.AddLast(new Tuple<Delegate, TaskFactory>(invocation, factory));
                 }
             }
         }
-    }
 
-    public Task Invoke(object sender, T args)
-    {
-        IEnumerable<Tuple<Delegate, TaskFactory>> toInvoke;
-        Task<int>[] toContinue = new[] { Task.FromResult(0) };
-
-        lock (Callbacks)
+        public void Remove(Delegate target)
         {
-            toInvoke = Callbacks.ToList();
+            lock (Callbacks)
+            {
+                if (Callbacks.Count == 0)
+                {
+                    return;
+                }
+
+                foreach (Delegate invocation in target.GetInvocationList())
+                {
+                    LinkedListNode<Tuple<Delegate, TaskFactory>> node = Callbacks.First;
+
+                    while (node != null)
+                    {
+                        if (node.Value.Item1 == invocation)
+                        {
+                            Callbacks.Remove(node);
+                            break;
+                        }
+                        node = node.Next;
+                    }
+                }
+            }
         }
 
-        List<Task<object>> invocations = toInvoke.Select(callback => callback.Item2.ContinueWhenAll(toContinue, _ => callback.Item1.DynamicInvoke(sender, args))).ToList();
-        return Task.WhenAll(invocations);
+        public Task Invoke(object sender, T args)
+        {
+            IEnumerable<Tuple<Delegate, TaskFactory>> toInvoke;
+            Task<int>[] toContinue = new[] { Task.FromResult(0) };
+
+            lock (Callbacks)
+            {
+                toInvoke = Callbacks.ToList();
+            }
+
+            List<Task<object>> invocations = toInvoke.Select(callback => callback.Item2.ContinueWhenAll(toContinue, _ => callback.Item1.DynamicInvoke(sender, args))).ToList();
+            return Task.WhenAll(invocations);
+        }
     }
 }

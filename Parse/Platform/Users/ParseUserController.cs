@@ -12,119 +12,120 @@ using Parse.Infrastructure.Data;
 using System.Net.Http;
 using System;
 
-namespace Parse.Platform.Users;
-
-
-public class ParseUserController : IParseUserController
+namespace Parse.Platform.Users
 {
-    private IParseCommandRunner CommandRunner { get; }
-    private IParseDataDecoder Decoder { get; }
 
-    public bool RevocableSessionEnabled { get; set; } = false; // Use a simple property
-
-    public ParseUserController(IParseCommandRunner commandRunner, IParseDataDecoder decoder)
+    public class ParseUserController : IParseUserController
     {
-        CommandRunner = commandRunner ?? throw new ArgumentNullException(nameof(commandRunner));
-        Decoder = decoder ?? throw new ArgumentNullException(nameof(decoder));
-    }
+        private IParseCommandRunner CommandRunner { get; }
+        private IParseDataDecoder Decoder { get; }
 
-    public async Task<IObjectState> SignUpAsync(
-        IObjectState state,
-        IDictionary<string, IParseFieldOperation> operations,
-        IServiceHub serviceHub,
-        CancellationToken cancellationToken = default)
-    {
-        if (state == null)
-            throw new ArgumentNullException(nameof(state));
-        if (operations == null)
-            throw new ArgumentNullException(nameof(operations));
-        if (serviceHub == null)
-            throw new ArgumentNullException(nameof(serviceHub));
+        public bool RevocableSessionEnabled { get; set; } = false; // Use a simple property
 
-        var command = new ParseCommand(
-            "classes/_User",
-            HttpMethod.Post.ToString(),
-            data: serviceHub.GenerateJSONObjectForSaving(operations));
+        public ParseUserController(IParseCommandRunner commandRunner, IParseDataDecoder decoder)
+        {
+            CommandRunner = commandRunner ?? throw new ArgumentNullException(nameof(commandRunner));
+            Decoder = decoder ?? throw new ArgumentNullException(nameof(decoder));
+        }
 
-        var result = await CommandRunner.RunCommandAsync(command).ConfigureAwait(false);
-        return ParseObjectCoder.Instance
-            .Decode(result.Item2, Decoder, serviceHub)
-            .MutatedClone(mutableClone => mutableClone.IsNew = true);
-    }
+        public async Task<IObjectState> SignUpAsync(
+            IObjectState state,
+            IDictionary<string, IParseFieldOperation> operations,
+            IServiceHub serviceHub,
+            CancellationToken cancellationToken = default)
+        {
+            if (state == null)
+                throw new ArgumentNullException(nameof(state));
+            if (operations == null)
+                throw new ArgumentNullException(nameof(operations));
+            if (serviceHub == null)
+                throw new ArgumentNullException(nameof(serviceHub));
 
-    public async Task<IObjectState> LogInAsync(
-        string username,
-        string password,
-        IServiceHub serviceHub,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(username))
-            throw new ArgumentException("Username cannot be null or empty.", nameof(username));
-        if (string.IsNullOrWhiteSpace(password))
-            throw new ArgumentException("Password cannot be null or empty.", nameof(password));
-        if (serviceHub == null)
-            throw new ArgumentNullException(nameof(serviceHub));
+            var command = new ParseCommand(
+                "classes/_User",
+                HttpMethod.Post.ToString(),
+                data: serviceHub.GenerateJSONObjectForSaving(operations));
 
-        // Use POST for login with credentials in the body to improve security
-        var command = new ParseCommand(
-            "login",
-            HttpMethod.Post.ToString(),
-            data: new Dictionary<string, object> { ["username"] = username, ["password"] = password });
+            var result = await CommandRunner.RunCommandAsync(command).ConfigureAwait(false);
+            return ParseObjectCoder.Instance
+                .Decode(result.Item2, Decoder, serviceHub)
+                .MutatedClone(mutableClone => mutableClone.IsNew = true);
+        }
 
-        var result = await CommandRunner.RunCommandAsync(command, cancellationToken: cancellationToken).ConfigureAwait(false);
-        return ParseObjectCoder.Instance
-            .Decode(result.Item2, Decoder, serviceHub)
-            .MutatedClone(mutableClone => mutableClone.IsNew = result.Item1 == System.Net.HttpStatusCode.Created);
-    }
+        public async Task<IObjectState> LogInAsync(
+            string username,
+            string password,
+            IServiceHub serviceHub,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                throw new ArgumentException("Username cannot be null or empty.", nameof(username));
+            if (string.IsNullOrWhiteSpace(password))
+                throw new ArgumentException("Password cannot be null or empty.", nameof(password));
+            if (serviceHub == null)
+                throw new ArgumentNullException(nameof(serviceHub));
 
-    public async Task<IObjectState> LogInAsync(
-        string authType,
-        IDictionary<string, object> data,
-        IServiceHub serviceHub,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(authType))
-            throw new ArgumentException("AuthType cannot be null or empty.", nameof(authType));
-        if (data == null)
-            throw new ArgumentNullException(nameof(data));
-        if (serviceHub == null)
-            throw new ArgumentNullException(nameof(serviceHub));
+            // Use POST for login with credentials in the body to improve security
+            var command = new ParseCommand(
+                "login",
+                HttpMethod.Post.ToString(),
+                data: new Dictionary<string, object> { ["username"] = username, ["password"] = password });
 
-        var authData = new Dictionary<string, object> { [authType] = data };
+            var result = await CommandRunner.RunCommandAsync(command, cancellationToken: cancellationToken).ConfigureAwait(false);
+            return ParseObjectCoder.Instance
+                .Decode(result.Item2, Decoder, serviceHub)
+                .MutatedClone(mutableClone => mutableClone.IsNew = result.Item1 == System.Net.HttpStatusCode.Created);
+        }
 
-        var command = new ParseCommand("users",HttpMethod.Post.ToString(),data: new Dictionary<string, object> { ["authData"] = authData });
+        public async Task<IObjectState> LogInAsync(
+            string authType,
+            IDictionary<string, object> data,
+            IServiceHub serviceHub,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(authType))
+                throw new ArgumentException("AuthType cannot be null or empty.", nameof(authType));
+            if (data == null)
+                throw new ArgumentNullException(nameof(data));
+            if (serviceHub == null)
+                throw new ArgumentNullException(nameof(serviceHub));
 
-        var result = await CommandRunner.RunCommandAsync(command).ConfigureAwait(false);
-        return ParseObjectCoder.Instance
-            .Decode(result.Item2, Decoder, serviceHub)
-            .MutatedClone(mutableClone => mutableClone.IsNew = result.Item1 == System.Net.HttpStatusCode.Created);
-    }
+            var authData = new Dictionary<string, object> { [authType] = data };
 
-    public async Task<IObjectState> GetUserAsync(
-        string sessionToken,
-        IServiceHub serviceHub,
-        CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(sessionToken))
-            throw new ArgumentException("Session token cannot be null or empty.", nameof(sessionToken));
-        if (serviceHub == null)
-            throw new ArgumentNullException(nameof(serviceHub));
+            var command = new ParseCommand("users",HttpMethod.Post.ToString(),data: new Dictionary<string, object> { ["authData"] = authData });
 
-        var command = new ParseCommand("users/me",HttpMethod.Get.ToString(),sessionToken: sessionToken, null, null);
-        var result = await CommandRunner.RunCommandAsync(command).ConfigureAwait(false);
-        return ParseObjectCoder.Instance.Decode(result.Item2, Decoder, serviceHub);
-    }
+            var result = await CommandRunner.RunCommandAsync(command).ConfigureAwait(false);
+            return ParseObjectCoder.Instance
+                .Decode(result.Item2, Decoder, serviceHub)
+                .MutatedClone(mutableClone => mutableClone.IsNew = result.Item1 == System.Net.HttpStatusCode.Created);
+        }
 
-    public Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(email))
-            throw new ArgumentException("Email cannot be null or empty.", nameof(email));
+        public async Task<IObjectState> GetUserAsync(
+            string sessionToken,
+            IServiceHub serviceHub,
+            CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(sessionToken))
+                throw new ArgumentException("Session token cannot be null or empty.", nameof(sessionToken));
+            if (serviceHub == null)
+                throw new ArgumentNullException(nameof(serviceHub));
 
-        var command = new ParseCommand(
-            "requestPasswordReset",
-            HttpMethod.Post.ToString(),
-            data: new Dictionary<string, object> { ["email"] = email });
+            var command = new ParseCommand("users/me",HttpMethod.Get.ToString(),sessionToken: sessionToken, null, null);
+            var result = await CommandRunner.RunCommandAsync(command).ConfigureAwait(false);
+            return ParseObjectCoder.Instance.Decode(result.Item2, Decoder, serviceHub);
+        }
 
-        return CommandRunner.RunCommandAsync(command);
+        public Task RequestPasswordResetAsync(string email, CancellationToken cancellationToken = default)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+                throw new ArgumentException("Email cannot be null or empty.", nameof(email));
+
+            var command = new ParseCommand(
+                "requestPasswordReset",
+                HttpMethod.Post.ToString(),
+                data: new Dictionary<string, object> { ["email"] = email });
+
+            return CommandRunner.RunCommandAsync(command);
+        }
     }
 }

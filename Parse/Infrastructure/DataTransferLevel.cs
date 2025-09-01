@@ -1,15 +1,16 @@
 using System;
 using Parse.Abstractions.Infrastructure;
 
-namespace Parse.Infrastructure;
-
-/// <summary>
-/// Represents upload progress.
-/// </summary>
-public class DataTransferLevel : EventArgs, IDataTransferLevel
+namespace Parse.Infrastructure
 {
     /// <summary>
-    /// Gets the progress (a number between 0.0 and 1.0) of an upload or download.
+    /// Represents upload progress.
     /// </summary>
-    public double Amount { get; set; }
+    public class DataTransferLevel : EventArgs, IDataTransferLevel
+    {
+        /// <summary>
+        /// Gets the progress (a number between 0.0 and 1.0) of an upload or download.
+        /// </summary>
+        public double Amount { get; set; }
+    }
 }
