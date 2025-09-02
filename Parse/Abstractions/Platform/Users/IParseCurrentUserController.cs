@@ -5,9 +5,11 @@ using Parse.Abstractions.Platform.Objects;
 
 namespace Parse.Abstractions.Platform.Users
 {
+#nullable enable
+
     public interface IParseCurrentUserController : IParseObjectCurrentController<ParseUser>
     {
-        Task<string> GetCurrentSessionTokenAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default);
+        Task<string?> GetCurrentSessionTokenAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default);
 
         Task LogOutAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default);
     }

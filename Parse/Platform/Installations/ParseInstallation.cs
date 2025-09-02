@@ -188,11 +188,11 @@ namespace Parse
             // Wait for the platform task, then proceed with saving the main task.
             try
             {
-                _ = platformHookTask.Safe().ConfigureAwait(false);
-                _ = base.SaveAsync(toAwait, cancellationToken).ConfigureAwait(false);
+                await platformHookTask.Safe().ConfigureAwait(false);
+                await base.SaveAsync(toAwait, cancellationToken).ConfigureAwait(false);
                 if (!Services.CurrentInstallationController.IsCurrent(this))
                 {
-                    _ = Services.CurrentInstallationController.SetAsync(this, cancellationToken).ConfigureAwait(false);
+                    await Services.CurrentInstallationController.SetAsync(this, cancellationToken).ConfigureAwait(false);
                 }
             }
             catch (Exception ex)

@@ -1,3 +1,5 @@
+#nullable enable
+
 using System.Threading;
 using System.Threading.Tasks;
 using Parse.Abstractions.Infrastructure;
@@ -17,13 +19,13 @@ namespace Parse.Abstractions.Platform.Objects
         /// </summary>
         /// <param name="obj"><see cref="ParseObject"/> to be persisted.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
-        Task<T> SetAsync(T obj, CancellationToken cancellationToken = default);
+        Task<T?> SetAsync(T obj, CancellationToken cancellationToken = default);
     
         /// <summary>
         /// Gets the persisted current <see cref="ParseObject"/>.
         /// </summary>
         /// <param name="cancellationToken">The cancellation token.</param>
-        Task<T> GetAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default);
+        Task<T?> GetAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Returns a <see cref="Task"/> that resolves to <code>true</code> if current

@@ -9,7 +9,7 @@ namespace Parse.Infrastructure
     /// </summary>
     public struct LiveQueryServerConnectionData : ILiveQueryServerConnectionData
     {
-        public LiveQueryServerConnectionData() { }
+        // Parameterless constructor removed for C# 9.0 compatibility
 
         internal bool Test { get; set; }
 
@@ -22,7 +22,7 @@ namespace Parse.Infrastructure
         /// The timeout duration, in seconds, used for various operations, such as
         /// establishing a connection or completing a subscription.
         /// </summary>
-        public TimeSpan Timeout { get; set; } = DefaultTimeout;
+        public TimeSpan Timeout { get; set; }
 
         /// <summary>
         /// The buffer size, in bytes, used by the WebSocket client for communication operations.

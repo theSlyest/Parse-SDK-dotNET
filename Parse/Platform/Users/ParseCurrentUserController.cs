@@ -10,7 +10,6 @@ using Parse.Abstractions.Platform.Users;
 using Parse.Infrastructure.Utilities;
 using Parse.Infrastructure.Data;
 using System;
-using System.Diagnostics;
 
 namespace Parse.Platform.Users
 {
@@ -34,7 +33,7 @@ namespace Parse.Platform.Users
             Decoder = decoder ?? throw new ArgumentNullException(nameof(decoder));
         }
 
-        public ParseUser CurrentUser
+        public ParseUser? CurrentUser
         {
             get => currentUser;
             private set => currentUser = value; // Setter is private to ensure controlled modification
@@ -47,9 +46,9 @@ namespace Parse.Platform.Users
                 .Select(s => s[random.Next(s.Length)]).ToArray());
         }
 
-        public async Task<ParseUser> SetAsync(ParseUser user, CancellationToken cancellationToken)
+        public async Task<ParseUser?> SetAsync(ParseUser user, CancellationToken cancellationToken)
         {
-            var usr = await TaskQueue.Enqueue<Task<ParseUser>>(async _ =>
+            var usr = await TaskQueue.Enqueue<Task<ParseUser?>>(async _ =>
             {
                 if (user == null)
                 {
@@ -86,7 +85,7 @@ namespace Parse.Platform.Users
         }
 
 
-        public async Task<ParseUser> GetAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default)
+        public async Task<ParseUser?> GetAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default)
         {
         
             if (CurrentUser is { ObjectId: { } })
@@ -136,7 +135,7 @@ namespace Parse.Platform.Users
             }, CancellationToken.None).ConfigureAwait(false);
         }
 
-        public async Task<string> GetCurrentSessionTokenAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default)
+        public async Task<string?> GetCurrentSessionTokenAsync(IServiceHub serviceHub, CancellationToken cancellationToken = default)
         {
             var user = await GetAsync(serviceHub, cancellationToken).ConfigureAwait(false);
             return user?.SessionToken;

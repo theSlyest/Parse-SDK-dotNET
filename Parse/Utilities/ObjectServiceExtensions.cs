@@ -9,9 +9,6 @@ using Parse.Abstractions.Infrastructure.Control;
 using Parse.Abstractions.Platform.Objects;
 using Parse.Infrastructure.Utilities;
 using Parse.Infrastructure.Data;
-using System.Diagnostics;
-using Parse.Abstractions.Infrastructure.Execution;
-using Parse.Abstractions.Platform.LiveQueries;
 using Parse.Platform.LiveQueries;
 
 namespace Parse

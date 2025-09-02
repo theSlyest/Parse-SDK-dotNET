@@ -128,8 +128,7 @@ namespace Parse
             }
             catch (Exception ex)
             {
-
-                throw new Exception("Error when Creating parse Object..");
+                throw new Exception("Error when Creating parse Object: ", ex);
             }
         }
 

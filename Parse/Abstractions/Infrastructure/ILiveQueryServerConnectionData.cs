@@ -13,7 +13,7 @@ namespace Parse.Abstractions.Infrastructure
         /// <summary>
         /// The default buffer size, in bytes.
         /// </summary>
-        public const int DefaultBufferSize = 4096; // 4KB
+        const int DefaultBufferSize = 4096; // 4KB
 
         /// <summary>
         /// The buffer size, in bytes, used for the WebSocket operations to handle incoming messages.

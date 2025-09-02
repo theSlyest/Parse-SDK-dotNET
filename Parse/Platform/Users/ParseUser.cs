@@ -30,7 +30,7 @@ namespace Parse
             }
             catch (Exception ex)
             {
-
+                Debug.WriteLine($"Error during authentication check: {ex.Message}");
                 return false;
             }
         }
@@ -112,7 +112,7 @@ namespace Parse
             }
             catch (Exception ex)
             {
-
+                Debug.WriteLine($"Error during SignUpAsync: {ex.Message}");
                 HandleFailedSave(currentOperations);
                 throw;
             }
