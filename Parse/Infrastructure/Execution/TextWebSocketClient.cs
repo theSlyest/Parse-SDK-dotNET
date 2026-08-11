@@ -59,22 +59,44 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     /// </returns>
     public async Task OpenAsync(string serverUri, CancellationToken cancellationToken = default)
     {
-        ClientWebSocket webSocketToConnect = null;
+        ClientWebSocket webSocketToConnect;
+        CancellationToken listeningToken;
         lock (connectionLock)
         {
-            webSocket ??= new ClientWebSocket();
-            if (webSocket.State != WebSocketState.Open && webSocket.State != WebSocketState.Connecting)
+            if (webSocket is { State: WebSocketState.Open or WebSocketState.Connecting })
             {
-                webSocketToConnect = webSocket;
+                return;
             }
+
+            // ClientWebSocket instances cannot be re-used after they have connected.
+            // Always create a new instance for a new connection attempt.
+            webSocket?.Dispose();
+            webSocket = new ClientWebSocket();
+            webSocketToConnect = webSocket;
+
+            listeningCts?.Cancel();
+            listeningCts?.Dispose();
+            listeningCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            listeningToken = listeningCts.Token;
         }
-        listeningCts?.Cancel();
-        listeningCts?.Dispose();
-        listeningCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        if (webSocketToConnect is not null)
+
+        try
         {
             await webSocketToConnect.ConnectAsync(new Uri(serverUri), cancellationToken);
-            StartListening(listeningCts.Token);
+            StartListening(listeningToken);
+        }
+        catch
+        {
+            lock (connectionLock)
+            {
+                if (ReferenceEquals(webSocket, webSocketToConnect))
+                {
+                    webSocket.Dispose();
+                    webSocket = null;
+                }
+            }
+
+            throw;
         }
     }
 
@@ -88,22 +110,71 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     /// </returns>
     public async Task CloseAsync(CancellationToken cancellationToken = default)
     {
-        if (webSocket is null)
+        ClientWebSocket webSocketToClose;
+        Task listeningTaskToStop;
+        CancellationTokenSource listeningCtsToStop;
+        lock (connectionLock)
+        {
+            webSocketToClose = webSocket;
+            listeningTaskToStop = listeningTask;
+            listeningCtsToStop = listeningCts;
+        }
+
+        if (webSocketToClose is null)
             return;
 
-        await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, String.Empty, cancellationToken);
+        listeningCtsToStop?.Cancel();
+        try
+        {
+            if (webSocketToClose.State is WebSocketState.Open or WebSocketState.Connecting)
+            {
+                await webSocketToClose.CloseAsync(WebSocketCloseStatus.NormalClosure, String.Empty, cancellationToken);
+            }
+
+            if (listeningTaskToStop is not null)
+            {
+                try
+                {
+                    await listeningTaskToStop;
+                }
+                catch (OperationCanceledException)
+                {
+                    // The listener is expected to stop when the connection is closed.
+                }
+            }
+        }
+        finally
+        {
+            lock (connectionLock)
+            {
+                if (ReferenceEquals(webSocket, webSocketToClose))
+                {
+                    webSocket = null;
+                }
+            }
+
+            webSocketToClose.Dispose();
+            lock (connectionLock)
+            {
+                if (ReferenceEquals(listeningCts, listeningCtsToStop))
+                {
+                    listeningCts?.Dispose();
+                    listeningCts = null;
+                }
+            }
+        }
     }
 
-    private async Task ListenForMessages(CancellationToken cancellationToken)
+    private async Task ListenForMessages(ClientWebSocket webSocketToListen, CancellationToken cancellationToken)
     {
         byte[] buffer = new byte[BufferSize];
 
         try
         {
             while (!cancellationToken.IsCancellationRequested &&
-                   webSocket.State == WebSocketState.Open)
+                   webSocketToListen.State == WebSocketState.Open)
             {
-                WebSocketReceiveResult result = await webSocket.ReceiveAsync(
+                WebSocketReceiveResult result = await webSocketToListen.ReceiveAsync(
                     new ArraySegment<byte>(buffer),
                     cancellationToken);
 
@@ -124,7 +195,7 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
                     messageStream.Write(buffer, 0, result.Count);
                     while (!result.EndOfMessage)
                     {
-                        result = await webSocket.ReceiveAsync(
+                        result = await webSocketToListen.ReceiveAsync(
                             new ArraySegment<byte>(buffer),
                             cancellationToken);
                         messageStream.Write(buffer, 0, result.Count);
@@ -160,6 +231,10 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     /// <param name="cancellationToken">A cancellation token to signal the listener task to stop.</param>
     private void StartListening(CancellationToken cancellationToken)
     {
+        // Capture the socket belonging to this connection. The field may be replaced
+        // by a later reconnect while this listener is still winding down.
+        ClientWebSocket webSocketToListen = webSocket;
+
         // Make sure we don't start multiple listeners
         if (listeningTask is { IsCompleted: false })
         {
@@ -174,7 +249,7 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            await ListenForMessages(cancellationToken);
+            await ListenForMessages(webSocketToListen, cancellationToken);
             Debug.WriteLine("Websocket listeningTask stopped");
         }, cancellationToken);
 

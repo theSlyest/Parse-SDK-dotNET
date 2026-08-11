@@ -299,10 +299,12 @@ public static class ObjectServiceExtensions
     /// <returns>A task that represents the asynchronous operation of connecting to the Live Query Server. The task completes when the connection is established.</returns>
     public static async Task ConnectLiveQueryServerAsync(this IServiceHub serviceHub, EventHandler<ParseLiveQueryErrorEventArgs> onError = null)
     {
+        if (serviceHub.LiveQueryController is null)
+            throw new InvalidOperationException($"{nameof(serviceHub)}.{nameof(serviceHub.LiveQueryController)} is not initialized.");
+
         if (onError is not null)
-        {
             serviceHub.LiveQueryController.Error += onError;
-        }
+
         await serviceHub.LiveQueryController.ConnectAsync();
     }
 

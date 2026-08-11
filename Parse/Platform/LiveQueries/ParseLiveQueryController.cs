@@ -355,14 +355,14 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     {
         _state = ParseLiveQueryState.Connecting;
         await OpenAsync(cancellationToken);
-        
+
         WebSocketClient.MessageReceived += WebSocketClientOnMessageReceived;
         WebSocketClient.WebsocketError += WebSocketClientOnWebsocketError;
         WebSocketClient.UnknownError += WebSocketClientOnUnknownError;
-        
+
         IDictionary<string, object> message = await MessageBuilder.BuildConnectMessage();
         ConnectionSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
@@ -377,8 +377,8 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
                 await CloseAsync(CancellationToken.None);
             }
             catch { } // Ignore cleanup errors
-            if (cts.IsCancellationRequested)
-                throw;            
+            if (cancellationToken.IsCancellationRequested)
+                throw;
 
             throw new TimeoutException("Live query server connection request has reached timeout");
         }
@@ -451,8 +451,8 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         }
         catch (OperationCanceledException)
         {
-            if (cts.IsCancellationRequested)
-                throw;            
+            if (cancellationToken.IsCancellationRequested)
+                throw;
 
             throw new TimeoutException($"Operation timeout for request {requestId}");
         }

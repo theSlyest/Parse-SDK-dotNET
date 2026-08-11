@@ -64,9 +64,9 @@ public interface IParseLiveQuerySubscription
     /// <returns>A task that represents the asynchronous operation of canceling the subscription.</returns>
     Task CancelAsync(CancellationToken cancellationToken = default);
 
-    internal void OnCreate(IObjectState objectState);
-    internal void OnEnter(IObjectState objectState, IObjectState originalState);
-    internal void OnUpdate(IObjectState objectState, IObjectState originalState);
-    internal void OnLeave(IObjectState objectState, IObjectState originalState);
-    internal void OnDelete(IObjectState objectState);
+    void OnCreate(IObjectState objectState);
+    void OnEnter(IObjectState objectState, IObjectState originalState);
+    void OnUpdate(IObjectState objectState, IObjectState originalState);
+    void OnLeave(IObjectState objectState, IObjectState originalState);
+    void OnDelete(IObjectState objectState);
 }

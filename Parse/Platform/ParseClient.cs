@@ -143,7 +143,7 @@ public class ParseClient : CustomServiceHub, IServiceHubComposer
             },
             { ServerURI: "wss://api.parse.com/1/" } => throw new InvalidOperationException("Since the official parse server has shut down, you must specify a URI that points to a hosted instance."),
             { ApplicationID: { }, ServerURI: { }, Key: { } } data => data,
-            _ => throw new InvalidOperationException("The IServerConnectionData implementation instance provided to the ParseClient constructor must be populated with the information needed to connect to a Parse server instance.")
+            _ => throw new InvalidOperationException("The ILiveQueryServerConnectionData implementation instance provided to the ParseClient constructor must be populated with the information needed to connect to a Parse server instance.")
         };
 
         if (configurators is { Length: int length } && length > 0)
