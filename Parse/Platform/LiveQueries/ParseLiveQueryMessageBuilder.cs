@@ -8,12 +8,16 @@ namespace Parse.Platform.LiveQueries;
 
 internal class ParseLiveQueryMessageBuilder : IParseLiveQueryMessageBuilder
 {
-    private async Task<IDictionary<string, object>> AppendSessionToken(IDictionary<string, object> message)
+    private IServiceHub Services { get; }
+
+    public ParseLiveQueryMessageBuilder(IServiceHub services = null) => Services = services;
+
+    private async Task<IDictionary<string, object>> AppendSessionToken(IDictionary<string, object> message, IServiceHub services)
     {
         if (message is null)
             throw new ArgumentNullException(nameof(message));
 
-        string sessionToken = await ParseClient.Instance.Services.GetCurrentSessionToken();
+        string sessionToken = await services.GetCurrentSessionToken();
         if (sessionToken is not null)
         {
             Dictionary<string, object> copy = new Dictionary<string, object>(message)
@@ -28,15 +32,15 @@ internal class ParseLiveQueryMessageBuilder : IParseLiveQueryMessageBuilder
 
     public async Task<IDictionary<string, object>> BuildConnectMessage()
     {
-        ILiveQueryServerConnectionData lqData = ParseClient.Instance.Services.LiveQueryServerConnectionData 
+        ILiveQueryServerConnectionData lqData = Services?.LiveQueryServerConnectionData
             ?? throw new InvalidOperationException("LiveQueryServerConnectionData is not configured");
 
-        return await AppendSessionToken(new Dictionary<string, object> 
+        return await AppendSessionToken(new Dictionary<string, object>
         {
             { "op", "connect" },
             { "applicationId", lqData.ApplicationID ?? throw new InvalidOperationException("LiveQueryServerConnectionData is not configured")},
             { "windowsKey", lqData.Key ?? throw new InvalidOperationException("LiveQueryServerConnectionData is not configured") } 
-        });
+        }, Services);
     }
 
     private async Task<IDictionary<string, object>> BuildSubscriptionMessageCore<T>(string operation, int requestId, ParseLiveQuery<T> liveQuery) where T : ParseObject
@@ -52,7 +56,7 @@ internal class ParseLiveQueryMessageBuilder : IParseLiveQueryMessageBuilder
             { "op", operation },
             { "requestId", requestId },
             { "query", liveQuery.BuildParameters() }
-        });
+        }, liveQuery.Services);
     }
 
     public async Task<IDictionary<string, object>> BuildSubscribeMessage<T>(int requestId, ParseLiveQuery<T> liveQuery) where T : ParseObject

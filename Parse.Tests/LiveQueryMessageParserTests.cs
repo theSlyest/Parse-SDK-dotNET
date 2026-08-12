@@ -21,7 +21,7 @@ public class LiveQueryMessageParserTests
     [TestMethod]
     public void TestConstructor()
     {
-        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder);
+        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder, Client.Services);
 
         Assert.IsNotNull(parser, "Parser should not be null after construction.");
 
@@ -31,7 +31,7 @@ public class LiveQueryMessageParserTests
     [TestMethod]
     public void TestGetClientId()
     {
-        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder);
+        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder, Client.Services);
         string clientId = "someClientId";
 
         IDictionary<string, object> message = new Dictionary<string, object> { { "clientId", clientId } };
@@ -47,7 +47,7 @@ public class LiveQueryMessageParserTests
     [TestMethod]
     public void TestGetRequestId()
     {
-        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder);
+        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder, Client.Services);
         int requestId = 42;
 
         IDictionary<string, object> message = new Dictionary<string, object> { { "requestId", (long) requestId } };
@@ -63,7 +63,7 @@ public class LiveQueryMessageParserTests
     [TestMethod]
     public void TestGetObjectState()
     {
-        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder);
+        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder, Client.Services);
         IDictionary<string, object> objData = new Dictionary<string, object>
         {
             { "objectId", "obj123" },
@@ -94,7 +94,7 @@ public class LiveQueryMessageParserTests
     [TestMethod]
     public void TestGetOriginalState()
     {
-        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder);
+        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder, Client.Services);
         IDictionary<string, object> objData = new Dictionary<string, object>
         {
             { "objectId", "obj123" },
@@ -125,7 +125,7 @@ public class LiveQueryMessageParserTests
     [TestMethod]
     public void TestGetError()
     {
-        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder);
+        ParseLiveQueryMessageParser parser = new ParseLiveQueryMessageParser(Client.Services.Decoder, Client.Services);
         int errorCode = 123;
         string errorMessage = "An error occurred";
         bool reconnect = true;

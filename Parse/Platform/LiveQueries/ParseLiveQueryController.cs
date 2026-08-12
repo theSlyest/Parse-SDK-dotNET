@@ -3,11 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
 using Parse.Abstractions.Infrastructure.Execution;
+using Parse.Abstractions.Infrastructure;
 using Parse.Abstractions.Platform.LiveQueries;
 using Parse.Abstractions.Platform.Objects;
 using Parse.Infrastructure.Execution;
@@ -26,6 +26,7 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     private IParseLiveQueryMessageBuilder MessageBuilder { get; }
 
     private IWebSocketClient WebSocketClient { get; }
+    private IServiceHub Services { get; }
 
     private int LastRequestId;
 
@@ -121,14 +122,19 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     /// <param name="messageBuilder">
     /// The <see cref="IParseLiveQueryMessageBuilder"/> implementation to use for building live query messages.
     /// </param>
+    /// <param name="services">
+    /// The <see cref="IServiceHub"/> instance that provides access to Parse services and configuration.
+    /// This is required for decoding object states and accessing LiveQuery server connection data.
+    /// </param>
     /// <remarks>
     /// This constructor is used to initialize a new instance of the <see cref="ParseLiveQueryController"/> class
     /// </remarks>
-    public ParseLiveQueryController(TimeSpan timeout, IWebSocketClient webSocketClient, IParseLiveQueryMessageParser messageParser, IParseLiveQueryMessageBuilder messageBuilder)
+    public ParseLiveQueryController(TimeSpan timeout, IWebSocketClient webSocketClient, IParseLiveQueryMessageParser messageParser, IParseLiveQueryMessageBuilder messageBuilder, IServiceHub services = null)
     {
         WebSocketClient = webSocketClient ?? throw new ArgumentNullException(nameof(webSocketClient));
         MessageParser = messageParser ?? throw new ArgumentNullException(nameof(messageParser));
         MessageBuilder = messageBuilder ?? throw new ArgumentNullException(nameof(messageBuilder));
+        Services = services;
         Timeout = timeout;
         _state = ParseLiveQueryState.Closed;
     }
@@ -317,17 +323,17 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
 
     private async Task OpenAsync(CancellationToken cancellationToken = default)
     {
-        if (ParseClient.Instance.Services is null)
+        if (Services is null)
         {
             throw new InvalidOperationException("ParseClient.Services must be initialized before connecting to the LiveQuery server.");
         }
 
-        if (ParseClient.Instance.Services.LiveQueryServerConnectionData is null)
+        if (Services.LiveQueryServerConnectionData is null)
         {
             throw new InvalidOperationException("ParseClient.Services.LiveQueryServerConnectionData must be initialized before connecting to the LiveQuery server.");
         }
 
-        await WebSocketClient.OpenAsync(ParseClient.Instance.Services.LiveQueryServerConnectionData.ServerURI, cancellationToken);
+        await WebSocketClient.OpenAsync(Services.LiveQueryServerConnectionData.ServerURI, cancellationToken);
     }
 
     private void WebSocketClientOnMessageReceived(object sender, MessageReceivedEventArgs args)

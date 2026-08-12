@@ -170,20 +170,20 @@ public class LateInitializedMutableServiceHub : IMutableServiceHub
 
     public IParseLiveQueryMessageParser LiveQueryMessageParser
     {
-        get => LateInitializer.GetValue<IParseLiveQueryMessageParser>(() => new ParseLiveQueryMessageParser(Decoder));
+        get => LateInitializer.GetValue<IParseLiveQueryMessageParser>(() => new ParseLiveQueryMessageParser(Decoder, this));
         set => LateInitializer.SetValue(value);
     }
 
 
     public IParseLiveQueryMessageBuilder LiveQueryMessageBuilder
     {
-        get => LateInitializer.GetValue<IParseLiveQueryMessageBuilder>(() => new ParseLiveQueryMessageBuilder());
+        get => LateInitializer.GetValue<IParseLiveQueryMessageBuilder>(() => new ParseLiveQueryMessageBuilder(this));
         set => LateInitializer.SetValue(value);
     }
 
     public IParseLiveQueryController LiveQueryController
     {
-        get => LateInitializer.GetValue<IParseLiveQueryController>(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryController(LiveQueryServerConnectionData.Timeout, WebSocketClient, LiveQueryMessageParser, LiveQueryMessageBuilder));
+        get => LateInitializer.GetValue<IParseLiveQueryController>(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryController(LiveQueryServerConnectionData.Timeout, WebSocketClient, LiveQueryMessageParser, LiveQueryMessageBuilder, this));
         set => LateInitializer.SetValue(value);
     }
 

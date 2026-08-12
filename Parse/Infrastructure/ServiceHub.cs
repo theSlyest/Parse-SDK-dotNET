@@ -72,9 +72,9 @@ public class ServiceHub : IServiceHub
     public IParseInstallationDataFinalizer InstallationDataFinalizer => LateInitializer.GetValue(() => new ParseInstallationDataFinalizer { });
 
     public IWebSocketClient WebSocketClient => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new TextWebSocketClient(LiveQueryServerConnectionData.MessageBufferSize));
-    public IParseLiveQueryMessageParser LiveQueryMessageParser => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryMessageParser(Decoder));
-    public IParseLiveQueryMessageBuilder LiveQueryMessageBuilder => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryMessageBuilder());
-    public IParseLiveQueryController LiveQueryController => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryController(LiveQueryServerConnectionData.Timeout, WebSocketClient, LiveQueryMessageParser, LiveQueryMessageBuilder));
+    public IParseLiveQueryMessageParser LiveQueryMessageParser => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryMessageParser(Decoder, this));
+    public IParseLiveQueryMessageBuilder LiveQueryMessageBuilder => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryMessageBuilder(this));
+    public IParseLiveQueryController LiveQueryController => LateInitializer.GetValue(() => LiveQueryServerConnectionData is null ? null : new ParseLiveQueryController(LiveQueryServerConnectionData.Timeout, WebSocketClient, LiveQueryMessageParser, LiveQueryMessageBuilder, this));
 
     public bool Reset()
     {

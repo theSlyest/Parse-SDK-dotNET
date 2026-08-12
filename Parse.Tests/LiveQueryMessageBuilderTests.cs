@@ -40,7 +40,7 @@ public class LiveQueryMessageBuilderTests
     [TestMethod]
     public async Task TestBuildConnectMessage()
     {
-        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder();
+        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder(Client.Services);
         IDictionary<string, object> message = await builder.BuildConnectMessage();
 
         Assert.IsNotNull(message);
@@ -59,7 +59,7 @@ public class LiveQueryMessageBuilderTests
     public void TestBuildUnsubscribeMessage()
     {
         int requestId = 2;
-        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder();
+        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder(Client.Services);
         IDictionary<string, object> message = builder.BuildUnsubscribeMessage(requestId);
 
         Assert.IsNotNull(message);
@@ -120,7 +120,7 @@ public class LiveQueryMessageBuilderTests
             new Dictionary<string, object> { { "foo", "bar" } },
             new[] { "foo" },
             new[] { "foo" });
-        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder();
+        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder(Client.Services);
         IDictionary<string, object> message = await builder.BuildSubscribeMessage<ParseObject>(requestId, liveQuery);
 
         ValidateSubscriptionMessage(message, "subscribe", requestId);
@@ -139,7 +139,7 @@ public class LiveQueryMessageBuilderTests
             new Dictionary<string, object> { { "foo", "bar" } },
             new[] { "foo" },
             new[] { "foo" });
-        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder();
+        ParseLiveQueryMessageBuilder builder = new ParseLiveQueryMessageBuilder(Client.Services);
         IDictionary<string, object> message = await builder.BuildUpdateSubscriptionMessage<ParseObject>(requestId, liveQuery);
 
         ValidateSubscriptionMessage(message, "update", requestId);

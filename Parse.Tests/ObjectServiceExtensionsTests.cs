@@ -270,7 +270,7 @@ public class ObjectServiceExtensionsTests
     {
         Mock<IServiceHub> mockHub = new Mock<IServiceHub>();
         mockHub.Setup(h => h.LiveQueryController).Returns((IParseLiveQueryController)null);
-        await Assert.ThrowsExceptionAsync<NullReferenceException>(
+        await Assert.ThrowsExceptionAsync<InvalidOperationException>(
             () => mockHub.Object.ConnectLiveQueryServerAsync((s, e) => { }));
     }
 
