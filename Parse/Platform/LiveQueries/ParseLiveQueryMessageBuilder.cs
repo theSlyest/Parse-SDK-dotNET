@@ -39,14 +39,14 @@ internal class ParseLiveQueryMessageBuilder : IParseLiveQueryMessageBuilder
         {
             { "op", "connect" },
             { "applicationId", lqData.ApplicationID ?? throw new InvalidOperationException("LiveQueryServerConnectionData is not configured")},
-            { "windowsKey", lqData.Key ?? throw new InvalidOperationException("LiveQueryServerConnectionData is not configured") } 
+            { "windowsKey", lqData.Key ?? throw new InvalidOperationException("LiveQueryServerConnectionData is not configured") }
         }, Services);
     }
 
     private async Task<IDictionary<string, object>> BuildSubscriptionMessageCore<T>(string operation, int requestId, ParseLiveQuery<T> liveQuery) where T : ParseObject
     {
         if (requestId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(requestId), "Request ID must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(requestId), @"Request ID must be greater than zero.");
 
         if (liveQuery is null)
             throw new ArgumentNullException(nameof(liveQuery));
@@ -68,7 +68,7 @@ internal class ParseLiveQueryMessageBuilder : IParseLiveQueryMessageBuilder
     public IDictionary<string, object> BuildUnsubscribeMessage(int requestId)
     {
         if (requestId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(requestId), "Request ID must be greater than zero.");
+            throw new ArgumentOutOfRangeException(nameof(requestId), @"Request ID must be greater than zero.");
 
         return new Dictionary<string, object>
         {

@@ -390,7 +390,6 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         }
         finally
         {
-            cts.Dispose();
             ConnectionSignal = null;
         }
     }
@@ -465,7 +464,6 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         finally
         {
             signalDictionary.TryRemove(requestId, out _);
-            tcs = null;
             cts.Dispose();
         }
     }
@@ -519,7 +517,7 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     /// The unique identifier of the subscription to update.
     /// </param>
     /// <param name="cancellationToken">
-    /// A token to monitor for cancellation requests, allowing the operation to be cancelled before completion.
+    /// A token to monitor for cancellation requests, allowing the operation to be canceled before completion.
     /// </param>
     /// <typeparam name="T">
     /// The type of the ParseObject that the query targets.

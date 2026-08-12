@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Parse.Abstractions.Infrastructure.Data;
+using Parse.Abstractions.Infrastructure;
 using Parse.Abstractions.Platform.LiveQueries;
 using Parse.Abstractions.Platform.Objects;
 using Parse.Infrastructure.Data;
@@ -10,10 +11,12 @@ namespace Parse.Platform.LiveQueries;
 internal sealed class ParseLiveQueryMessageParser : IParseLiveQueryMessageParser
 {
     private IParseDataDecoder Decoder { get; }
+    private IServiceHub Services { get; }
 
-    public ParseLiveQueryMessageParser(IParseDataDecoder decoder)
+    public ParseLiveQueryMessageParser(IParseDataDecoder decoder, IServiceHub services = null)
     {
         Decoder = decoder ?? throw new ArgumentNullException(nameof(decoder));
+        Services = services;
     }
 
     public string GetClientId(IDictionary<string, object> message)
@@ -54,7 +57,7 @@ internal sealed class ParseLiveQueryMessageParser : IParseLiveQueryMessageParser
         IDictionary<string, object> current = GetDictionary(message, "object")
             ?? throw new ArgumentException("Message does not contain a valid object state.", nameof(message));
 
-        return ParseObjectCoder.Instance.Decode(current, Decoder, ParseClient.Instance.Services);
+        return ParseObjectCoder.Instance.Decode(current, Decoder, Services ?? throw new InvalidOperationException("IServiceHub is required to decode LiveQuery object state."));
     }
 
     public IObjectState GetOriginalState(IDictionary<string, object> message)
@@ -62,7 +65,7 @@ internal sealed class ParseLiveQueryMessageParser : IParseLiveQueryMessageParser
         IDictionary<string, object> original = GetDictionary(message, "original")
             ?? throw new ArgumentException("Message does not contain a valid original object state.", nameof(message));
 
-        return ParseObjectCoder.Instance.Decode(original, Decoder, ParseClient.Instance.Services);
+        return ParseObjectCoder.Instance.Decode(original, Decoder, Services ?? throw new InvalidOperationException("IServiceHub is required to decode LiveQuery object state."));
     }
 
     public IParseLiveQueryMessageParser.LiveQueryError GetError(IDictionary<string, object> message)
