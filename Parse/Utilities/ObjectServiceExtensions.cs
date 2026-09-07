@@ -315,6 +315,9 @@ public static class ObjectServiceExtensions
     /// <returns>A task representing the asynchronous operation of disconnecting from the live query server.</returns>
     public static async Task DisconnectLiveQueryServerAsync(this IServiceHub serviceHub)
     {
+        if (serviceHub.LiveQueryController is null)
+            throw new InvalidOperationException($"{nameof(serviceHub)}.{nameof(serviceHub.LiveQueryController)} is not initialized.");
+
         await serviceHub.LiveQueryController.CloseAsync();
     }
 

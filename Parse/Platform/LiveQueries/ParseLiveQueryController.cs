@@ -446,7 +446,11 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     {
         CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         TaskCompletionSource tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        signalDictionary.TryAdd(requestId, tcs);
+        if (!signalDictionary.TryAdd(requestId, tcs))
+        {
+            cts.Dispose();
+            throw new InvalidOperationException($"An operation is already pending for request {requestId}.");
+        }
 
         try
         {
