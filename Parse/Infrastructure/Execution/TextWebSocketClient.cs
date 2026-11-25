@@ -275,23 +275,41 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     /// <exception cref="InvalidOperationException">Thrown when trying to send a message on a WebSocket connection that is not in the Open state.</exception>
     public async Task SendAsync(string message, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(webSocket);
-        if (webSocket.State != WebSocketState.Open)
+        ClientWebSocket webSocketToSend;
+        lock (connectionLock)
         {
-            throw new InvalidOperationException($"WebSocket is not in Open state. Current state: {webSocket.State}");
+            webSocketToSend = webSocket;
         }
-        await webSocket.SendAsync(Encoding.UTF8.GetBytes(message), WebSocketMessageType.Text, true, cancellationToken);
+
+        ArgumentNullException.ThrowIfNull(webSocketToSend);
+        if (webSocketToSend.State != WebSocketState.Open)
+        {
+            throw new InvalidOperationException($"WebSocket is not in Open state. Current state: {webSocketToSend.State}");
+        }
+
+        // ClientWebSocket supports only one outstanding SendAsync at a time, so concurrent callers
+        // (e.g. parallel subscribe requests) must be serialized.
+        await sendLock.WaitAsync(cancellationToken);
+        try
+        {
+            await webSocketToSend.SendAsync(Encoding.UTF8.GetBytes(message), WebSocketMessageType.Text, true, cancellationToken);
+        }
+        finally
+        {
+            sendLock.Release();
+        }
     }
 
+    private readonly SemaphoreSlim sendLock = new(1, 1);
     private CancellationTokenSource listeningCts;
     private bool disposed;
-    
+
     public void Dispose()
     {
         Dispose(true);
         GC.SuppressFinalize(this);
     }
-    
+
     protected virtual void Dispose(bool disposing)
     {
         if (!disposed)
@@ -304,9 +322,10 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
                     listeningTask?.Wait(TimeSpan.FromSeconds(5));
                 }
                 catch { }
-                
+
                 webSocket?.Dispose();
                 listeningCts?.Dispose();
+                sendLock.Dispose();
             }
             disposed = true;
         }

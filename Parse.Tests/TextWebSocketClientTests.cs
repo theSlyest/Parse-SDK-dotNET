@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
@@ -41,10 +41,10 @@ public class TextWebSocketClientTests
     public void StartListening_DoesNotStartMultipleListeners()
     {
         TextWebSocketClient client = new TextWebSocketClient(1024);
-        MethodInfo method = typeof(TextWebSocketClient).GetMethod("StartListening", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        MethodInfo method = typeof(TextWebSocketClient).GetMethod("StartListening", System.Reflection.BindingFlags.NonPublic | BindingFlags.Instance);
         CancellationTokenSource cts = new CancellationTokenSource();
-        method.Invoke(client, new object[] { cts.Token });
-        method.Invoke(client, new object[] { cts.Token });
+        method?.Invoke(client, new object[] { cts.Token });
+        method?.Invoke(client, new object[] { cts.Token });
         // Should not throw or start multiple listeners
     }
     [TestMethod]
@@ -61,7 +61,7 @@ public class TextWebSocketClientTests
     {
         // obtain endpoint from environment/config
         string wsUrl = Environment.GetEnvironmentVariable("TEST_WEBSOCKET_ECHO_URL")?.Trim();
-        if (string.IsNullOrEmpty(wsUrl))
+        if (String.IsNullOrEmpty(wsUrl))
         {
             // if not provided we cannot run the live integration; mark inconclusive
             // users/CI can set TEST_WEBSOCKET_ECHO_URL to a reachable echo service
@@ -94,5 +94,48 @@ public class TextWebSocketClientTests
 
         client.MessageReceived -= handler;
         await client.CloseAsync(cts.Token);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_ConcurrentCalls_AreAllDelivered()
+    {
+        const int messageCount = 25;
+        System.Net.Sockets.TcpListener portFinder = new(System.Net.IPAddress.Loopback, 0);
+        portFinder.Start();
+        int port = ((System.Net.IPEndPoint) portFinder.LocalEndpoint).Port;
+        portFinder.Stop();
+
+        using System.Net.HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+
+        int received = 0;
+        TaskCompletionSource allReceived = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task server = Task.Run(async () =>
+        {
+            System.Net.HttpListenerContext context = await listener.GetContextAsync();
+            System.Net.WebSockets.HttpListenerWebSocketContext wsContext = await context.AcceptWebSocketAsync(null);
+            byte[] buffer = new byte[1024];
+            while (wsContext.WebSocket.State == System.Net.WebSockets.WebSocketState.Open)
+            {
+                System.Net.WebSockets.WebSocketReceiveResult result = await wsContext.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                if (result.MessageType == System.Net.WebSockets.WebSocketMessageType.Close)
+                    break;
+                if (result.EndOfMessage && Interlocked.Increment(ref received) == messageCount)
+                    allReceived.TrySetResult();
+            }
+        });
+
+        using TextWebSocketClient client = new(1024);
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+        await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+
+        // ClientWebSocket allows one outstanding send; SendAsync serializes concurrent callers.
+        await Task.WhenAll(Enumerable.Range(0, messageCount).Select(n => Task.Run(() => client.SendAsync($"message {n}", cts.Token))));
+        await allReceived.Task.WaitAsync(cts.Token);
+
+        Assert.AreEqual(messageCount, received);
+        await client.CloseAsync(cts.Token);
+        listener.Stop();
     }
 }
