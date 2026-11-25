@@ -138,4 +138,38 @@ public class TextWebSocketClientTests
         await client.CloseAsync(cts.Token);
         listener.Stop();
     }
+
+    [TestMethod]
+    public async Task StartListening_StartsListenerForReplacedSocket_WhileOldListenerIsStillRunning()
+    {
+        System.Net.Sockets.TcpListener portFinder = new(System.Net.IPAddress.Loopback, 0);
+        portFinder.Start();
+        int port = ((System.Net.IPEndPoint) portFinder.LocalEndpoint).Port;
+        portFinder.Stop();
+
+        using System.Net.HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        // The server accepts the connection and keeps it open, so the first listener stays running.
+        Task<System.Net.HttpListenerContext> accept = listener.GetContextAsync();
+        _ = accept.ContinueWith(t => t.Result.AcceptWebSocketAsync(null), TaskContinuationOptions.OnlyOnRanToCompletion);
+
+        using TextWebSocketClient client = new(1024);
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+        await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+
+        BindingFlags flags = BindingFlags.NonPublic | BindingFlags.Instance;
+        FieldInfo socketField = typeof(TextWebSocketClient).GetField("webSocket", flags);
+        FieldInfo listeningSocketField = typeof(TextWebSocketClient).GetField("listeningSocket", flags);
+        Task firstListener = (Task) typeof(TextWebSocketClient).GetField("listeningTask", flags).GetValue(client);
+        Assert.IsFalse(firstListener.IsCompleted, "The first listener should still be running.");
+
+        // Simulate a reconnect: the socket field now points at a new socket while the old listener winds down.
+        System.Net.WebSockets.ClientWebSocket replacement = new();
+        socketField.SetValue(client, replacement);
+        typeof(TextWebSocketClient).GetMethod("StartListening", flags).Invoke(client, new object[] { cts.Token });
+
+        Assert.AreSame(replacement, listeningSocketField.GetValue(client), "A listener must be started for the new socket.");
+        listener.Abort();
+    }
 }

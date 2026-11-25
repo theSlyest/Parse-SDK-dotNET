@@ -231,29 +231,37 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     /// <param name="cancellationToken">A cancellation token to signal the listener task to stop.</param>
     private void StartListening(CancellationToken cancellationToken)
     {
-        // Capture the socket belonging to this connection. The field may be replaced
-        // by a later reconnect while this listener is still winding down.
-        ClientWebSocket webSocketToListen = webSocket;
-
-        // Make sure we don't start multiple listeners
-        if (listeningTask is { IsCompleted: false })
+        Task listenerTask;
+        lock (connectionLock)
         {
-            return;
-        }
+            // Capture the socket belonging to this connection. The field may be replaced
+            // by a later reconnect while this listener is still winding down.
+            ClientWebSocket webSocketToListen = webSocket;
 
-        // Start the listener task
-        listeningTask = Task.Run(async () =>
-        {
-            if (cancellationToken.IsCancellationRequested)
+            // Make sure we don't start multiple listeners for the same socket. A listener that is
+            // still winding down for a previous (replaced) socket must not prevent the new socket
+            // from being listened to, otherwise a reconnect would never receive any message.
+            if (listeningTask is { IsCompleted: false } && ReferenceEquals(listeningSocket, webSocketToListen))
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                return;
             }
 
-            await ListenForMessages(webSocketToListen, cancellationToken);
-            Debug.WriteLine("Websocket listeningTask stopped");
-        }, cancellationToken);
+            listeningSocket = webSocketToListen;
 
-        _ = listeningTask.ContinueWith(task =>
+            // Start the listener task
+            listenerTask = listeningTask = Task.Run(async () =>
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+
+                await ListenForMessages(webSocketToListen, cancellationToken);
+                Debug.WriteLine("Websocket listeningTask stopped");
+            }, cancellationToken);
+        }
+
+        _ = listenerTask.ContinueWith(task =>
         {
             if (!task.IsFaulted)
                 return;
@@ -301,6 +309,7 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     }
 
     private readonly SemaphoreSlim sendLock = new(1, 1);
+    private ClientWebSocket listeningSocket;
     private CancellationTokenSource listeningCts;
     private bool disposed;
 
