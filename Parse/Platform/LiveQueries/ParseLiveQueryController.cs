@@ -504,9 +504,22 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
 
         int requestId = Interlocked.Increment(ref LastRequestId);
         IDictionary<string, object> message = await MessageBuilder.BuildSubscribeMessage(requestId, liveQuery);
-        await SendAndWaitForSignalAsync(message, SubscriptionSignals, requestId, cancellationToken);
+
+        // Register the subscription before the request is sent: the server may deliver events
+        // right after the "subscribed" ack, and they would be dropped if the subscription were
+        // only registered once the ack has been awaited.
         ParseLiveQuerySubscription<T> subscription = new ParseLiveQuerySubscription<T>(liveQuery.Services, liveQuery.ClassName, requestId);
         Subscriptions.TryAdd(requestId, subscription);
+        try
+        {
+            await SendAndWaitForSignalAsync(message, SubscriptionSignals, requestId, cancellationToken);
+        }
+        catch
+        {
+            Subscriptions.TryRemove(requestId, out _);
+            throw;
+        }
+
         return subscription;
     }
 

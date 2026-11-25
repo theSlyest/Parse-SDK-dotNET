@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Moq;
+using Parse.Abstractions.Infrastructure;
 using Parse.Abstractions.Infrastructure.Execution;
 using Parse.Abstractions.Platform.LiveQueries;
 using Parse.Platform.LiveQueries;
@@ -176,5 +177,62 @@ public class LiveQueryControllerTests
         // verify controller's internal ClientId property was set appropriately
         PropertyInfo clientIdProp = controller.GetType().GetProperty("ClientId", BindingFlags.NonPublic | BindingFlags.Instance);
         Assert.AreEqual("cid", clientIdProp.GetValue(controller));
+    }
+
+    private ParseLiveQueryController CreateConnectedController()
+    {
+        ParseLiveQueryController controller = new ParseLiveQueryController(_timeout, _webSocketClientMock.Object, _messageParserMock.Object, _messageBuilderMock.Object);
+        typeof(ParseLiveQueryController).GetField("_state", BindingFlags.NonPublic | BindingFlags.Instance)
+            .SetValue(controller, ParseLiveQueryController.ParseLiveQueryState.Connected);
+        _messageBuilderMock
+            .Setup(b => b.BuildSubscribeMessage(It.IsAny<int>(), It.IsAny<ParseLiveQuery<ParseObject>>()))
+            .ReturnsAsync(new Dictionary<string, object> { ["op"] = "subscribe" });
+        return controller;
+    }
+
+    private static int RegisteredSubscriptionCount(ParseLiveQueryController controller) =>
+        ((System.Collections.ICollection) typeof(ParseLiveQueryController)
+            .GetProperty("Subscriptions", BindingFlags.NonPublic | BindingFlags.Instance)
+            .GetValue(controller)).Count;
+
+    [TestMethod]
+    public async Task SubscribeAsync_RegistersSubscriptionBeforeAckIsReceived()
+    {
+        ParseLiveQueryController controller = CreateConnectedController();
+        _messageParserMock.Setup(m => m.GetClientId(It.IsAny<IDictionary<string, object>>())).Returns("cid");
+        _messageParserMock.Setup(m => m.GetRequestId(It.IsAny<IDictionary<string, object>>())).Returns(1);
+        MethodInfo processSubscription = typeof(ParseLiveQueryController).GetMethod("ProcessSubscriptionMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        int registeredWhenSent = -1;
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                // Events can follow the ack immediately, so the subscription must already be registered.
+                registeredWhenSent = RegisteredSubscriptionCount(controller);
+                processSubscription.Invoke(controller, new object[] { new Dictionary<string, object>() });
+                return Task.CompletedTask;
+            });
+
+        ParseLiveQuery<ParseObject> query = new(new Mock<IServiceHub>().Object, "Corgi", new Dictionary<string, object>());
+        IParseLiveQuerySubscription subscription = await controller.SubscribeAsync(query);
+
+        Assert.IsNotNull(subscription);
+        Assert.AreEqual(1, registeredWhenSent);
+        Assert.AreEqual(1, RegisteredSubscriptionCount(controller));
+    }
+
+    [TestMethod]
+    public async Task SubscribeAsync_RemovesSubscription_WhenSendFails()
+    {
+        ParseLiveQueryController controller = CreateConnectedController();
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("closed"));
+
+        ParseLiveQuery<ParseObject> query = new(new Mock<IServiceHub>().Object, "Corgi", new Dictionary<string, object>());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => controller.SubscribeAsync(query));
+        Assert.AreEqual(0, RegisteredSubscriptionCount(controller));
     }
 }
