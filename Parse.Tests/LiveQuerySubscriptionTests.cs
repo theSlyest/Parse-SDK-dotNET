@@ -89,8 +89,10 @@ public class LiveQuerySubscriptionTests
 
         ParseLiveQuerySubscription<ParseObject> subscription = new(Client.Services, "Corgi", 1);
 
+        bool invoked = false;
         subscription.Update += (_, args) =>
         {
+            invoked = true;
             Assert.IsNotNull(args, "The event args should not be null.");
 
             Assert.AreEqual(args.Object.ObjectId, state.ObjectId);
@@ -103,6 +105,7 @@ public class LiveQuerySubscriptionTests
         };
 
         subscription.OnUpdate(state, originalState);
+        Assert.IsTrue(invoked, "Update handler was not invoked.");
     }
 
 
@@ -130,8 +133,10 @@ public class LiveQuerySubscriptionTests
 
         ParseLiveQuerySubscription<ParseObject> subscription = new(Client.Services, "Corgi", 1);
 
+        bool invoked = false;
         subscription.Enter += (_, args) =>
         {
+            invoked = true;
             Assert.IsNotNull(args, "The event args should not be null.");
 
             Assert.AreEqual(args.Object.ObjectId, state.ObjectId);
@@ -144,6 +149,7 @@ public class LiveQuerySubscriptionTests
         };
 
         subscription.OnEnter(state, originalState);
+        Assert.IsTrue(invoked, "Enter handler was not invoked.");
     }
 
     [TestMethod]
@@ -160,13 +166,21 @@ public class LiveQuerySubscriptionTests
             }
         };
 
-        MutableObjectState state = originalState;
+        MutableObjectState state = new()
+        {
+            ObjectId = originalState.ObjectId,
+            ClassName = originalState.ClassName,
+            CreatedAt = originalState.CreatedAt,
+            ServerData = new Dictionary<string, object>(originalState.ServerData)
+        };
         state["key"] = "after";
 
         ParseLiveQuerySubscription<ParseObject> subscription = new(Client.Services, "Corgi", 1);
 
+        bool invoked = false;
         subscription.Leave += (_, args) =>
         {
+            invoked = true;
             Assert.IsNotNull(args, "The event args should not be null.");
 
             Assert.AreEqual(args.Object.ObjectId, state.ObjectId);
@@ -179,6 +193,7 @@ public class LiveQuerySubscriptionTests
         };
 
         subscription.OnLeave(state, originalState);
+        Assert.IsTrue(invoked, "Leave handler was not invoked.");
     }
 
 
@@ -198,8 +213,10 @@ public class LiveQuerySubscriptionTests
 
         ParseLiveQuerySubscription<ParseObject> subscription = new(Client.Services, "Corgi", 1);
 
+        bool invoked = false;
         subscription.Delete += (_, args) =>
         {
+            invoked = true;
             Assert.IsNotNull(args, "The event args should not be null.");
             Assert.AreEqual(args.Object.ObjectId, state.ObjectId);
             Assert.AreEqual(args.Object.ClassName, state.ClassName);
@@ -207,6 +224,7 @@ public class LiveQuerySubscriptionTests
         };
 
         subscription.OnDelete(state);
+        Assert.IsTrue(invoked, "Delete handler was not invoked.");
     }
 
     [TestMethod]
