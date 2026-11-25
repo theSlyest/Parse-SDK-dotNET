@@ -288,7 +288,41 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     void ProcessErrorMessage(IDictionary<string, object> message)
     {
         IParseLiveQueryMessageParser.LiveQueryError liveQueryError = MessageParser.GetError(message);
+        FailPendingOperations(message, liveQueryError);
         Error?.Invoke(this, new ParseLiveQueryErrorEventArgs(liveQueryError.Code, liveQueryError.Message, liveQueryError.Reconnect));
+    }
+
+    /// <summary>
+    /// Fails the operation a server error refers to, so callers get the server's answer immediately
+    /// instead of waiting for the timeout.
+    /// </summary>
+    private void FailPendingOperations(IDictionary<string, object> message, IParseLiveQueryMessageParser.LiveQueryError liveQueryError)
+    {
+        InvalidOperationException exception = new InvalidOperationException($"The LiveQuery server returned error {liveQueryError.Code}: {liveQueryError.Message}");
+
+        int requestId = 0;
+        try
+        {
+            requestId = MessageParser.GetRequestId(message);
+        }
+        catch (ArgumentException)
+        {
+            // The error does not refer to a particular request.
+        }
+
+        if (requestId > 0)
+        {
+            if (SubscriptionSignals.TryGetValue(requestId, out TaskCompletionSource subscriptionSignal))
+                subscriptionSignal.TrySetException(exception);
+            if (UnsubscriptionSignals.TryGetValue(requestId, out TaskCompletionSource unsubscriptionSignal))
+                unsubscriptionSignal.TrySetException(exception);
+            return;
+        }
+
+        // Without a request id, the only operation an error can answer is the connection handshake
+        // (for example an invalid application id or key).
+        if (_state == ParseLiveQueryState.Connecting)
+            ConnectionSignal?.TrySetException(exception);
     }
 
     void ProcessUnsubscriptionMessage(IDictionary<string, object> message)

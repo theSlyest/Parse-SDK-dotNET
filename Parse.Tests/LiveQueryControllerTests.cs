@@ -330,4 +330,50 @@ public class LiveQueryControllerTests
         Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Connected, controller.State);
         _webSocketClientMock.Verify(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [TestMethod]
+    public async Task SubscribeAsync_FailsImmediately_WhenServerAnswersWithError()
+    {
+        ParseLiveQueryController controller = CreateConnectedController();
+        _messageParserMock.Setup(m => m.GetRequestId(It.IsAny<IDictionary<string, object>>())).Returns(1);
+        _messageParserMock.Setup(m => m.GetError(It.IsAny<IDictionary<string, object>>()))
+            .Returns(new IParseLiveQueryMessageParser.LiveQueryError(1, "Invalid query", false));
+        MethodInfo processError = typeof(ParseLiveQueryController).GetMethod("ProcessErrorMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                processError.Invoke(controller, new object[] { new Dictionary<string, object>() });
+                return Task.CompletedTask;
+            });
+
+        ParseLiveQuery<ParseObject> query = new(new Mock<IServiceHub>().Object, "Corgi", new Dictionary<string, object>());
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => controller.SubscribeAsync(query));
+        StringAssert.Contains(exception.Message, "Invalid query");
+        Assert.AreEqual(0, RegisteredSubscriptionCount(controller));
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_FailsImmediately_WhenServerRejectsTheHandshake()
+    {
+        ParseLiveQueryController controller = CreateControllerWithServices();
+        _webSocketClientMock.Setup(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        // An error that does not refer to a request (no request id) during the handshake.
+        _messageParserMock.Setup(m => m.GetRequestId(It.IsAny<IDictionary<string, object>>())).Throws(new ArgumentException("no request id"));
+        _messageParserMock.Setup(m => m.GetError(It.IsAny<IDictionary<string, object>>()))
+            .Returns(new IParseLiveQueryMessageParser.LiveQueryError(4, "Invalid key", false));
+        MethodInfo processError = typeof(ParseLiveQueryController).GetMethod("ProcessErrorMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                processError.Invoke(controller, new object[] { new Dictionary<string, object>() });
+                return Task.CompletedTask;
+            });
+
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(() => controller.ConnectAsync());
+        StringAssert.Contains(exception.Message, "Invalid key");
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, controller.State);
+    }
 }
