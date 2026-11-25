@@ -6,6 +6,7 @@ using Moq;
 using Parse.Abstractions.Infrastructure;
 using Parse.Abstractions.Infrastructure.Execution;
 using Parse.Abstractions.Platform.LiveQueries;
+using Parse.Infrastructure.Execution;
 using Parse.Platform.LiveQueries;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Reflection;
@@ -234,5 +235,34 @@ public class LiveQueryControllerTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => controller.SubscribeAsync(query));
         Assert.AreEqual(0, RegisteredSubscriptionCount(controller));
+    }
+
+    [TestMethod]
+    public void MessageReceived_HandlerThatThrows_RaisesErrorAndDoesNotPropagate()
+    {
+        ParseLiveQueryController controller = new ParseLiveQueryController(_timeout, _webSocketClientMock.Object, _messageParserMock.Object, _messageBuilderMock.Object);
+        // The parser throwing a non-ArgumentException stands in for a user event handler that throws.
+        _messageParserMock.Setup(m => m.GetError(It.IsAny<IDictionary<string, object>>())).Throws(new InvalidOperationException("boom"));
+
+        ParseLiveQueryErrorEventArgs received = null;
+        controller.Error += (_, e) => received = e;
+
+        MethodInfo onMessage = typeof(ParseLiveQueryController).GetMethod("WebSocketClientOnMessageReceived", BindingFlags.NonPublic | BindingFlags.Instance);
+        onMessage.Invoke(controller, new object[] { null, new MessageReceivedEventArgs("{\"op\":\"error\"}") });
+
+        Assert.IsNotNull(received);
+        Assert.AreEqual(-1, received.Code);
+        Assert.IsFalse(received.Reconnect);
+    }
+
+    [TestMethod]
+    public void MessageReceived_ErrorHandlerThatThrows_DoesNotPropagate()
+    {
+        ParseLiveQueryController controller = new ParseLiveQueryController(_timeout, _webSocketClientMock.Object, _messageParserMock.Object, _messageBuilderMock.Object);
+        _messageParserMock.Setup(m => m.GetError(It.IsAny<IDictionary<string, object>>())).Throws(new InvalidOperationException("boom"));
+        controller.Error += (_, _) => throw new InvalidOperationException("handler failure");
+
+        MethodInfo onMessage = typeof(ParseLiveQueryController).GetMethod("WebSocketClientOnMessageReceived", BindingFlags.NonPublic | BindingFlags.Instance);
+        onMessage.Invoke(controller, new object[] { null, new MessageReceivedEventArgs("{\"op\":\"error\"}") });
     }
 }

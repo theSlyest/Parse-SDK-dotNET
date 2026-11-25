@@ -355,6 +355,21 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
             Debug.WriteLine($"Error parsing message: {ex.Message}");
             Error?.Invoke(this, new ParseLiveQueryErrorEventArgs(31, $"Failed to parse message: {ex.Message}", true, ex));
         }
+        catch (Exception ex)
+        {
+            // This runs on the WebSocket receive loop and invokes user event handlers synchronously.
+            // An exception escaping here would terminate the loop and leave the connection
+            // silently dead while State still reports Connected, so report it and keep listening.
+            Debug.WriteLine($"Error while processing message: {ex}");
+            try
+            {
+                Error?.Invoke(this, new ParseLiveQueryErrorEventArgs(-1, $"Error while processing message: {ex.Message}", false, ex));
+            }
+            catch (Exception handlerException)
+            {
+                Debug.WriteLine($"Error handler threw: {handlerException}");
+            }
+        }
     }
 
     private async Task EstablishConnectionAsync(CancellationToken cancellationToken)
