@@ -43,6 +43,7 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
     public event EventHandler<MessageReceivedEventArgs> MessageReceived;
     public event EventHandler<ErrorEventArgs> WebsocketError;
     public event EventHandler<ErrorEventArgs> UnknownError;
+    public event EventHandler Closed;
 
     private readonly object connectionLock = new object();
 
@@ -223,6 +224,20 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
             UnknownError?.Invoke(this, new ErrorEventArgs(ex));
         }
         Debug.WriteLine("Websocket ListenForMessage stopped");
+
+        // The listener only stops without a cancellation request when the server closed the connection
+        // or it was lost; tell the owner so it does not keep believing the connection is alive.
+        if (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                Closed?.Invoke(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Closed handler threw: {ex.Message}");
+            }
+        }
     }
 
     /// <summary>

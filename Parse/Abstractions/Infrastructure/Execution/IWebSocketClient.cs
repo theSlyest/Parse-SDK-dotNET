@@ -40,6 +40,12 @@ public interface IWebSocketClient
     public event EventHandler<ErrorEventArgs> UnknownError;
 
     /// <summary>
+    /// Raised when the connection ended without a local call to <see cref="CloseAsync"/>, for example because the
+    /// server closed it or the connection was lost. It is not raised for a close requested by the client.
+    /// </summary>
+    public event EventHandler Closed;
+
+    /// <summary>
     /// Establishes a WebSocket connection to the specified server URI.
     /// </summary>
     /// <param name="serverUri">The URI of the WebSocket server to connect to.</param>

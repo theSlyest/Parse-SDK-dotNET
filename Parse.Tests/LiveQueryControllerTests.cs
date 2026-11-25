@@ -376,4 +376,33 @@ public class LiveQueryControllerTests
         StringAssert.Contains(exception.Message, "Invalid key");
         Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, controller.State);
     }
+
+    [TestMethod]
+    public async Task ConnectionClosedByServer_ResetsStateAndRaisesReconnectableError()
+    {
+        ParseLiveQueryController controller = CreateControllerWithServices();
+        _messageParserMock.Setup(m => m.GetClientId(It.IsAny<IDictionary<string, object>>())).Returns("cid");
+        MethodInfo processConnection = typeof(ParseLiveQueryController).GetMethod("ProcessConnectionMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+        _webSocketClientMock.Setup(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _webSocketClientMock.Setup(w => w.CloseAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                processConnection.Invoke(controller, new object[] { new Dictionary<string, object>() });
+                return Task.CompletedTask;
+            });
+        TaskCompletionSource<ParseLiveQueryErrorEventArgs> error = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        controller.Error += (_, e) => error.TrySetResult(e);
+
+        await controller.ConnectAsync();
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Connected, controller.State);
+
+        _webSocketClientMock.Raise(w => w.Closed += null, EventArgs.Empty);
+
+        ParseLiveQueryErrorEventArgs args = await error.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.IsTrue(args.Reconnect);
+        // The state is reset before the error is reported, so a handler can reconnect right away.
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, controller.State);
+    }
 }

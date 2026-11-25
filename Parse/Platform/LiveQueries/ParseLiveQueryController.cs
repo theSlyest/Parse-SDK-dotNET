@@ -419,6 +419,7 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
             WebSocketClient.MessageReceived += WebSocketClientOnMessageReceived;
             WebSocketClient.WebsocketError += WebSocketClientOnWebsocketError;
             WebSocketClient.UnknownError += WebSocketClientOnUnknownError;
+            WebSocketClient.Closed += WebSocketClientOnClosed;
 
             IDictionary<string, object> message = await MessageBuilder.BuildConnectMessage();
             await SendMessage(message, cancellationToken);
@@ -509,6 +510,36 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         {
             Error?.Invoke(this, new ParseLiveQueryErrorEventArgs(ex.ErrorCode, ex.Message, false, ex));
         }
+    }
+
+    void WebSocketClientOnClosed(object sender, EventArgs args)
+    {
+        if (_state == ParseLiveQueryState.Closed)
+            return;
+
+        // The server closed the connection or it was lost. Subscriptions do not survive that, so reset
+        // everything first; only then report it, so a handler that reconnects starts from a clean state.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await CloseAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error while cleaning up a closed connection: {ex}");
+                return;
+            }
+
+            try
+            {
+                Error?.Invoke(this, new ParseLiveQueryErrorEventArgs(-1, "The connection to the LiveQuery server was closed.", true));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error handler threw: {ex}");
+            }
+        });
     }
 
     void WebSocketClientOnUnknownError(object sender, ErrorEventArgs args)
@@ -668,6 +699,7 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         WebSocketClient.MessageReceived -= WebSocketClientOnMessageReceived;
         WebSocketClient.WebsocketError -= WebSocketClientOnWebsocketError;
         WebSocketClient.UnknownError -= WebSocketClientOnUnknownError;
+        WebSocketClient.Closed -= WebSocketClientOnClosed;
         await WebSocketClient.CloseAsync(cancellationToken);
         // cancel any pending connection waiters as well
         ConnectionSignal?.TrySetCanceled();

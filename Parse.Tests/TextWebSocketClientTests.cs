@@ -172,4 +172,42 @@ public class TextWebSocketClientTests
         Assert.AreSame(replacement, listeningSocketField.GetValue(client), "A listener must be started for the new socket.");
         listener.Abort();
     }
+
+    [TestMethod]
+    public async Task Closed_IsRaised_WhenServerClosesTheConnection_ButNotOnLocalClose()
+    {
+        System.Net.Sockets.TcpListener portFinder = new(System.Net.IPAddress.Loopback, 0);
+        portFinder.Start();
+        int port = ((System.Net.IPEndPoint) portFinder.LocalEndpoint).Port;
+        portFinder.Stop();
+
+        using System.Net.HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+
+        TaskCompletionSource<System.Net.WebSockets.WebSocket> serverSocket = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = Task.Run(async () =>
+        {
+            System.Net.HttpListenerContext context = await listener.GetContextAsync();
+            serverSocket.SetResult((await context.AcceptWebSocketAsync(null)).WebSocket);
+        });
+
+        using TextWebSocketClient client = new(1024);
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+        int closedCount = 0;
+        TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        client.Closed += (_, _) => { Interlocked.Increment(ref closedCount); closed.TrySetResult(); };
+
+        await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+        System.Net.WebSockets.WebSocket server = await serverSocket.Task.WaitAsync(cts.Token);
+
+        await server.CloseOutputAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "bye", cts.Token);
+        await closed.Task.WaitAsync(cts.Token);
+        Assert.AreEqual(1, closedCount);
+
+        // A close requested by the client itself is not reported as a loss of connection.
+        await client.CloseAsync(cts.Token);
+        Assert.AreEqual(1, closedCount);
+        listener.Stop();
+    }
 }
