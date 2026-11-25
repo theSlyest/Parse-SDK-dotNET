@@ -405,4 +405,48 @@ public class LiveQueryControllerTests
         // The state is reset before the error is reported, so a handler can reconnect right away.
         Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, controller.State);
     }
+
+    [TestMethod]
+    public async Task DisposeAsync_MarksControllerAsDisposed_AndIsIdempotent()
+    {
+        ParseLiveQueryController controller = new ParseLiveQueryController(_timeout, _webSocketClientMock.Object, _messageParserMock.Object, _messageBuilderMock.Object);
+        _webSocketClientMock.Setup(w => w.CloseAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        await controller.DisposeAsync();
+        await controller.DisposeAsync();
+        controller.Dispose();
+
+        _webSocketClientMock.Verify(w => w.CloseAsync(It.IsAny<CancellationToken>()), Times.Once);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => controller.ConnectAsync());
+    }
+
+    [TestMethod]
+    public async Task UnsubscribeAsync_RemovesSubscription_EvenWhenServerDoesNotAcknowledge()
+    {
+        ParseLiveQueryController controller = CreateConnectedController();
+        _messageBuilderMock.Setup(b => b.BuildUnsubscribeMessage(1)).Returns(new Dictionary<string, object> { ["op"] = "unsubscribe" });
+        _messageParserMock.Setup(m => m.GetClientId(It.IsAny<IDictionary<string, object>>())).Returns("cid");
+        _messageParserMock.Setup(m => m.GetRequestId(It.IsAny<IDictionary<string, object>>())).Returns(1);
+        MethodInfo processSubscription = typeof(ParseLiveQueryController).GetMethod("ProcessSubscriptionMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        // Subscribe: acknowledge the request immediately.
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                processSubscription.Invoke(controller, new object[] { new Dictionary<string, object>() });
+                return Task.CompletedTask;
+            });
+        ParseLiveQuery<ParseObject> query = new(new Mock<IServiceHub>().Object, "Corgi", new Dictionary<string, object>());
+        await controller.SubscribeAsync(query);
+        Assert.AreEqual(1, RegisteredSubscriptionCount(controller));
+
+        // Unsubscribe: the server never answers.
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        await Assert.ThrowsAsync<TimeoutException>(() => controller.UnsubscribeAsync(1));
+
+        Assert.AreEqual(0, RegisteredSubscriptionCount(controller));
+    }
 }

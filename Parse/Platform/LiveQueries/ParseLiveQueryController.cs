@@ -679,8 +679,16 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     {
         ThrowIfDisposed();
         IDictionary<string, object> message = MessageBuilder.BuildUnsubscribeMessage(requestId);
-        await SendAndWaitForSignalAsync(message, UnsubscriptionSignals, requestId, cancellationToken);
-        Subscriptions.TryRemove(requestId, out _);
+        try
+        {
+            await SendAndWaitForSignalAsync(message, UnsubscriptionSignals, requestId, cancellationToken);
+        }
+        finally
+        {
+            // The caller no longer wants events for this subscription, whether or not the server
+            // acknowledged in time. Keeping it registered would leave a stale entry that keeps firing.
+            Subscriptions.TryRemove(requestId, out _);
+        }
     }
 
     /// <summary>
@@ -744,7 +752,18 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     /// </remarks>
     public async ValueTask DisposeAsync()
     {
-        await CloseAsync();
+        if (disposed)
+            return;
+
+        try
+        {
+            await CloseAsync();
+        }
+        finally
+        {
+            disposed = true;
+        }
+
         GC.SuppressFinalize(this);
     }
 
