@@ -210,4 +210,81 @@ public class TextWebSocketClientTests
         Assert.AreEqual(1, closedCount);
         listener.Stop();
     }
+
+    private static async Task<(System.Net.HttpListener Listener, int Port, TaskCompletionSource<System.Net.WebSockets.WebSocket> Server)> StartServerAsync()
+    {
+        System.Net.Sockets.TcpListener portFinder = new(System.Net.IPAddress.Loopback, 0);
+        portFinder.Start();
+        int port = ((System.Net.IPEndPoint) portFinder.LocalEndpoint).Port;
+        portFinder.Stop();
+
+        System.Net.HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+
+        TaskCompletionSource<System.Net.WebSockets.WebSocket> server = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _ = Task.Run(async () =>
+        {
+            System.Net.HttpListenerContext context = await listener.GetContextAsync();
+            server.SetResult((await context.AcceptWebSocketAsync(null)).WebSocket);
+        });
+        await Task.CompletedTask;
+        return (listener, port, server);
+    }
+
+    [TestMethod]
+    public async Task ServerInitiatedClose_CompletesTheClosingHandshake()
+    {
+        (System.Net.HttpListener listener, int port, TaskCompletionSource<System.Net.WebSockets.WebSocket> serverTask) = await StartServerAsync();
+        using (listener)
+        {
+            using TextWebSocketClient client = new(1024);
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+            await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+            System.Net.WebSockets.WebSocket server = await serverTask.Task.WaitAsync(cts.Token);
+
+            // The server waits for the client's close frame, so this only completes if the client answers.
+            await server.CloseAsync(System.Net.WebSockets.WebSocketCloseStatus.NormalClosure, "bye", cts.Token);
+
+            Assert.AreEqual(System.Net.WebSockets.WebSocketState.Closed, server.State);
+            listener.Stop();
+        }
+    }
+
+    [TestMethod]
+    public async Task OversizedFragmentedMessage_IsRejected_AndReportedAsError()
+    {
+        (System.Net.HttpListener listener, int port, TaskCompletionSource<System.Net.WebSockets.WebSocket> serverTask) = await StartServerAsync();
+        using (listener)
+        {
+            using TextWebSocketClient client = new(1024);
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(20));
+            TaskCompletionSource<Exception> error = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            bool messageDelivered = false;
+            client.UnknownError += (_, e) => error.TrySetResult(e.GetException());
+            client.MessageReceived += (_, _) => messageDelivered = true;
+            await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+            System.Net.WebSockets.WebSocket server = await serverTask.Task.WaitAsync(cts.Token);
+
+            byte[] chunk = new byte[64 * 1024];
+            Array.Fill(chunk, (byte) 'a');
+            int chunks = TextWebSocketClient.MaxMessageSize / chunk.Length + 2;
+            try
+            {
+                for (int n = 0; n < chunks; n++)
+                {
+                    await server.SendAsync(chunk, System.Net.WebSockets.WebSocketMessageType.Text, n == chunks - 1, cts.Token);
+                }
+            }
+            catch (System.Net.WebSockets.WebSocketException)
+            {
+                // The client closes the connection once the limit is exceeded.
+            }
+
+            Exception exception = await error.Task.WaitAsync(cts.Token);
+            Assert.IsInstanceOfType<InvalidOperationException>(exception);
+            Assert.IsFalse(messageDelivered);
+            listener.Stop();
+        }
+    }
 }

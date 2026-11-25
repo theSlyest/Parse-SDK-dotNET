@@ -166,6 +166,29 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
         }
     }
 
+    /// <summary>
+    /// The largest message that is reassembled from fragments, to keep a misbehaving server from exhausting memory.
+    /// </summary>
+    internal const int MaxMessageSize = 16 * 1024 * 1024;
+
+    /// <summary>
+    /// Completes the closing handshake after the server sent a close frame.
+    /// </summary>
+    private static async Task AcknowledgeCloseAsync(ClientWebSocket socket)
+    {
+        try
+        {
+            if (socket.State == WebSocketState.CloseReceived)
+            {
+                await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, String.Empty, CancellationToken.None);
+            }
+        }
+        catch (Exception ex) when (ex is WebSocketException or ObjectDisposedException or InvalidOperationException)
+        {
+            Debug.WriteLine($"Could not acknowledge the close frame: {ex.Message}");
+        }
+    }
+
     private async Task ListenForMessages(ClientWebSocket webSocketToListen, CancellationToken cancellationToken)
     {
         byte[] buffer = new byte[BufferSize];
@@ -181,6 +204,7 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
+                    await AcknowledgeCloseAsync(webSocketToListen);
                     break;
                 }
 
@@ -192,16 +216,35 @@ class TextWebSocketClient(int bufferSize) : IWebSocketClient, IDisposable
                 else
                 {
                     // Accumulate bytes to handle UTF-8 characters split across boundaries
-                    MemoryStream messageStream = new MemoryStream();
+                    using MemoryStream messageStream = new MemoryStream();
                     messageStream.Write(buffer, 0, result.Count);
+                    bool closed = false;
                     while (!result.EndOfMessage)
                     {
                         result = await webSocketToListen.ReceiveAsync(
                             new ArraySegment<byte>(buffer),
                             cancellationToken);
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            await AcknowledgeCloseAsync(webSocketToListen);
+                            closed = true;
+                            break;
+                        }
+
+                        if (messageStream.Length + result.Count > MaxMessageSize)
+                        {
+                            await webSocketToListen.CloseOutputAsync(WebSocketCloseStatus.MessageTooBig, "Message too big", CancellationToken.None);
+                            throw new InvalidOperationException($"Received a message larger than {MaxMessageSize} bytes.");
+                        }
+
                         messageStream.Write(buffer, 0, result.Count);
                     }
-                    string fullMessage = Encoding.UTF8.GetString(messageStream.ToArray());
+
+                    if (closed)
+                        break;
+
+                    string fullMessage = Encoding.UTF8.GetString(messageStream.GetBuffer(), 0, (int) messageStream.Length);
                     MessageReceived?.Invoke(this, new MessageReceivedEventArgs(fullMessage));
                 }
             }
