@@ -104,6 +104,8 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     public ParseLiveQueryState State => _state;
     private volatile ParseLiveQueryState _state;
 
+    private readonly object stateLock = new();
+
     TaskCompletionSource ConnectionSignal { get; set; }
     private ConcurrentDictionary<int, TaskCompletionSource> SubscriptionSignals { get; } = new ConcurrentDictionary<int, TaskCompletionSource>();
     private ConcurrentDictionary<int, TaskCompletionSource> UnsubscriptionSignals { get; } = new ConcurrentDictionary<int, TaskCompletionSource>();
@@ -372,40 +374,55 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         }
     }
 
-    private async Task EstablishConnectionAsync(CancellationToken cancellationToken)
+    private async Task EstablishConnectionAsync(TaskCompletionSource connectionSignal, CancellationToken cancellationToken)
     {
-        _state = ParseLiveQueryState.Connecting;
-        await OpenAsync(cancellationToken);
-
-        WebSocketClient.MessageReceived += WebSocketClientOnMessageReceived;
-        WebSocketClient.WebsocketError += WebSocketClientOnWebsocketError;
-        WebSocketClient.UnknownError += WebSocketClientOnUnknownError;
-
-        IDictionary<string, object> message = await MessageBuilder.BuildConnectMessage();
-        ConnectionSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         using CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         try
         {
+            await OpenAsync(cancellationToken);
+
+            WebSocketClient.MessageReceived += WebSocketClientOnMessageReceived;
+            WebSocketClient.WebsocketError += WebSocketClientOnWebsocketError;
+            WebSocketClient.UnknownError += WebSocketClientOnUnknownError;
+
+            IDictionary<string, object> message = await MessageBuilder.BuildConnectMessage();
             await SendMessage(message, cancellationToken);
             cts.CancelAfter(Timeout);
-            await ConnectionSignal.Task.WaitAsync(cts.Token);
+            await connectionSignal.Task.WaitAsync(cts.Token);
         }
-        catch (OperationCanceledException)
+        catch (Exception ex)
         {
-            try
-            {
-                await CloseAsync(CancellationToken.None);
-            }
-            catch { } // Ignore cleanup errors
-            if (cancellationToken.IsCancellationRequested)
-                throw;
+            // Whatever went wrong (open failure, send failure, timeout, cancellation), do not stay in
+            // Connecting: later ConnectAsync calls would otherwise return as if a connection existed.
+            await ResetAfterFailedConnectAsync();
+            connectionSignal.TrySetCanceled();
 
-            throw new TimeoutException("Live query server connection request has reached timeout");
+            if (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+                throw new TimeoutException("Live query server connection request has reached timeout");
+
+            throw;
         }
         finally
         {
-            ConnectionSignal = null;
+            lock (stateLock)
+            {
+                if (ReferenceEquals(ConnectionSignal, connectionSignal))
+                    ConnectionSignal = null;
+            }
+        }
+    }
+
+    private async Task ResetAfterFailedConnectAsync()
+    {
+        try
+        {
+            await CloseAsync(CancellationToken.None);
+        }
+        catch
+        {
+            // Ignore cleanup errors, but make sure the state is reset.
+            _state = ParseLiveQueryState.Closed;
         }
     }
 
@@ -424,17 +441,31 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
     public async Task ConnectAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        if (_state == ParseLiveQueryState.Closed)
+
+        TaskCompletionSource signal;
+        bool owner = false;
+
+        // Deciding who opens the connection must be atomic: otherwise two concurrent callers can both
+        // observe Closed and both open a connection.
+        lock (stateLock)
         {
-            await EstablishConnectionAsync(cancellationToken);
-        }
-        else if (_state == ParseLiveQueryState.Connecting)
-        {
-            TaskCompletionSource signal = ConnectionSignal;
-            if (signal is not null)
+            if (_state == ParseLiveQueryState.Closed)
             {
-                await signal.Task.WaitAsync(cancellationToken);
+                _state = ParseLiveQueryState.Connecting;
+                ConnectionSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                owner = true;
             }
+
+            signal = _state == ParseLiveQueryState.Connecting ? ConnectionSignal : null;
+        }
+
+        if (owner)
+        {
+            await EstablishConnectionAsync(signal, cancellationToken);
+        }
+        else if (signal is not null)
+        {
+            await signal.Task.WaitAsync(cancellationToken);
         }
     }
 

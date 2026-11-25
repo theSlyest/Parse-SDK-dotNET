@@ -265,4 +265,69 @@ public class LiveQueryControllerTests
         MethodInfo onMessage = typeof(ParseLiveQueryController).GetMethod("WebSocketClientOnMessageReceived", BindingFlags.NonPublic | BindingFlags.Instance);
         onMessage.Invoke(controller, new object[] { null, new MessageReceivedEventArgs("{\"op\":\"error\"}") });
     }
+
+    private ParseLiveQueryController CreateControllerWithServices()
+    {
+        Mock<ILiveQueryServerConnectionData> connectionData = new();
+        connectionData.Setup(d => d.ServerURI).Returns("wss://localhost/parse");
+        Mock<IServiceHub> services = new();
+        services.Setup(h => h.LiveQueryServerConnectionData).Returns(connectionData.Object);
+        _messageBuilderMock.Setup(b => b.BuildConnectMessage()).ReturnsAsync(new Dictionary<string, object> { ["op"] = "connect" });
+        return new ParseLiveQueryController(_timeout, _webSocketClientMock.Object, _messageParserMock.Object, _messageBuilderMock.Object, services.Object);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_ResetsToClosed_WhenOpenFails_AndCanBeRetried()
+    {
+        ParseLiveQueryController controller = CreateControllerWithServices();
+        _webSocketClientMock
+            .Setup(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.IO.IOException("unreachable"));
+
+        await Assert.ThrowsAsync<System.IO.IOException>(() => controller.ConnectAsync());
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, controller.State);
+
+        // A second attempt must try to open again instead of returning as if connected.
+        await Assert.ThrowsAsync<System.IO.IOException>(() => controller.ConnectAsync());
+        _webSocketClientMock.Verify(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_ResetsToClosed_WhenSendFails()
+    {
+        ParseLiveQueryController controller = CreateControllerWithServices();
+        _webSocketClientMock.Setup(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("not open"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => controller.ConnectAsync());
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, controller.State);
+    }
+
+    [TestMethod]
+    public async Task ConnectAsync_ConcurrentCalls_OpenTheConnectionOnce()
+    {
+        ParseLiveQueryController controller = CreateControllerWithServices();
+        _messageParserMock.Setup(m => m.GetClientId(It.IsAny<IDictionary<string, object>>())).Returns("cid");
+        MethodInfo processConnection = typeof(ParseLiveQueryController).GetMethod("ProcessConnectionMessage", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        TaskCompletionSource openGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _webSocketClientMock.Setup(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).Returns(openGate.Task);
+        _webSocketClientMock
+            .Setup(w => w.SendAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                processConnection.Invoke(controller, new object[] { new Dictionary<string, object>() });
+                return Task.CompletedTask;
+            });
+
+        Task first = controller.ConnectAsync();
+        Task second = controller.ConnectAsync();
+        openGate.SetResult();
+        await Task.WhenAll(first, second);
+
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Connected, controller.State);
+        _webSocketClientMock.Verify(w => w.OpenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
