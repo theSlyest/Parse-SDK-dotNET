@@ -303,7 +303,12 @@ public static class ObjectServiceExtensions
             throw new InvalidOperationException($"{nameof(serviceHub)}.{nameof(serviceHub.LiveQueryController)} is not initialized.");
 
         if (onError is not null)
+        {
+            // Remove first so that calling this method repeatedly with the same handler (for example when
+            // reconnecting) does not register it more than once and raise every error multiple times.
+            serviceHub.LiveQueryController.Error -= onError;
             serviceHub.LiveQueryController.Error += onError;
+        }
 
         await serviceHub.LiveQueryController.ConnectAsync();
     }

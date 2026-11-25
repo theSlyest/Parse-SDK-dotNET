@@ -179,6 +179,23 @@ public class ObjectServiceExtensionsTests
     }
 
     [TestMethod]
+    public async Task ConnectLiveQueryServerAsync_CalledTwiceWithSameHandler_RegistersItOnce()
+    {
+        Mock<IServiceHub> mockHub = new Mock<IServiceHub>();
+        Mock<IParseLiveQueryController> mockLq = new Mock<IParseLiveQueryController>();
+        mockLq.Setup(l => l.ConnectAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+        mockHub.Setup(h => h.LiveQueryController).Returns(mockLq.Object);
+
+        int calls = 0;
+        EventHandler<ParseLiveQueryErrorEventArgs> handler = (s, e) => calls++;
+        await mockHub.Object.ConnectLiveQueryServerAsync(handler);
+        await mockHub.Object.ConnectLiveQueryServerAsync(handler);
+
+        mockLq.Raise(l => l.Error += null, new object(), new ParseLiveQueryErrorEventArgs(0, "error", false));
+        Assert.AreEqual(1, calls);
+    }
+
+    [TestMethod]
     public async Task DisconnectLiveQueryServerAsync_CallsClose()
     {
         Mock<IServiceHub> mockHub = new Mock<IServiceHub>();
