@@ -126,4 +126,24 @@ public class LiveQueryControllerOperationTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => harness.Controller.SubscribeAsync(harness.NewQuery(), cts.Token));
     }
+
+    [TestMethod]
+    public async Task CloseAsync_ClearsSubscriptions_AndFailsPendingOperations()
+    {
+        LiveQueryServerHarness harness = new(TimeSpan.FromSeconds(5));
+        IParseLiveQuerySubscription subscription = await harness.ConnectAndSubscribeAsync();
+        int requestId = Convert.ToInt32(harness.Sent[^1]["requestId"]);
+        int events = 0;
+        subscription.Create += (_, _) => events++;
+        harness.AnswerSubscribe = false;
+        Task pending = harness.Controller.SubscribeAsync(harness.NewQuery());
+
+        await harness.Controller.CloseAsync();
+
+        Assert.AreEqual(ParseLiveQueryController.ParseLiveQueryState.Closed, harness.Controller.State);
+        await Assert.ThrowsAsync<OperationCanceledException>(() => pending);
+        // Events for a subscription that no longer exists are dropped.
+        harness.Receive(LiveQueryServerHarness.Event("create", requestId));
+        Assert.AreEqual(0, events);
+    }
 }

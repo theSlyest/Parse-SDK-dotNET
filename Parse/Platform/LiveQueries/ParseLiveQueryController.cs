@@ -433,7 +433,7 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
             await ResetAfterFailedConnectAsync();
             connectionSignal.TrySetCanceled();
 
-            if (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            if (ex is OperationCanceledException && cts.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                 throw new TimeoutException("Live query server connection request has reached timeout");
 
             throw;
@@ -571,7 +571,9 @@ public class ParseLiveQueryController : IParseLiveQueryController, IDisposable, 
         }
         catch (OperationCanceledException)
         {
-            if (cancellationToken.IsCancellationRequested)
+            // Only our own timeout is a timeout. A caller cancellation, or the connection being closed
+            // while the operation was pending, must not be reported as one.
+            if (cancellationToken.IsCancellationRequested || !cts.IsCancellationRequested)
                 throw;
 
             throw new TimeoutException($"Operation timeout for request {requestId}");
