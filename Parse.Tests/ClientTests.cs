@@ -19,17 +19,17 @@ public class ClientTests
     public void TestParseClientLiveQueryConstructor()
     {
         ServerConnectionData serverConnectionData = new()
-        { 
-            ApplicationID = "appId", 
+        {
+            ApplicationID = "appId",
             ServerURI = "https://parse.example.com/",
-            Key = "dotnetKey" 
+            Key = "dotnetKey"
         };
 
         LiveQueryServerConnectionData liveQueryServerConnectionData = new()
-        { 
-            ApplicationID = "appId", 
-            ServerURI = "https://parse.example.com/", 
-            Key = "dotnetKey" 
+        {
+            ApplicationID = "appId",
+            ServerURI = "wss://parse.example.com/",
+            Key = "dotnetKey"
         };
 
         ParseClient client = new(serverConnectionData, liveQueryServerConnectionData);
@@ -38,7 +38,7 @@ public class ClientTests
         Assert.AreEqual("dotnetKey", client.ServerConnectionData.Key);
 
         Assert.AreEqual("appId", client.LiveQueryServerConnectionData.ApplicationID);
-        Assert.AreEqual("https://parse.example.com/", client.LiveQueryServerConnectionData.ServerURI);
+        Assert.AreEqual("wss://parse.example.com/", client.LiveQueryServerConnectionData.ServerURI);
         Assert.AreEqual("dotnetKey", client.LiveQueryServerConnectionData.Key);
     }
 
@@ -59,11 +59,11 @@ public class ClientTests
     public void TestConstructorWithTestTrue()
     {
         ServerConnectionData data = new()
-        { 
-            ApplicationID = "appId", 
-            ServerURI = "https://parse.example.com/", 
-            Key = "key", 
-            Test = true 
+        {
+            ApplicationID = "appId",
+            ServerURI = "https://parse.example.com/",
+            Key = "key",
+            Test = true
         };
         ParseClient client = new(data);
         Assert.AreEqual("https://parse.example.com/", client.ServerConnectionData.ServerURI);
