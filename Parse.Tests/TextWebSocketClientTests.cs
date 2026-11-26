@@ -287,4 +287,109 @@ public class TextWebSocketClientTests
             listener.Stop();
         }
     }
+
+    [TestMethod]
+    public async Task OpenAsync_WhileAlreadyOpen_DoesNotConnectAgain()
+    {
+        (System.Net.HttpListener listener, int port, TaskCompletionSource<System.Net.WebSockets.WebSocket> serverTask) = await StartServerAsync();
+        using (listener)
+        {
+            using TextWebSocketClient client = new(1024);
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+            await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+            System.Net.WebSockets.WebSocket server = await serverTask.Task.WaitAsync(cts.Token);
+
+            // A second open is a no-op: no new connection (the listener only accepts one) and the socket keeps working.
+            await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+            await client.SendAsync("still connected", cts.Token);
+
+            byte[] buffer = new byte[64];
+            System.Net.WebSockets.WebSocketReceiveResult result = await server.ReceiveAsync(new ArraySegment<byte>(buffer), cts.Token);
+            Assert.AreEqual("still connected", System.Text.Encoding.UTF8.GetString(buffer, 0, result.Count));
+            listener.Stop();
+        }
+    }
+
+    [TestMethod]
+    public async Task OpenAsync_CanConnectAgain_AfterClose()
+    {
+        System.Net.Sockets.TcpListener portFinder = new(System.Net.IPAddress.Loopback, 0);
+        portFinder.Start();
+        int port = ((System.Net.IPEndPoint) portFinder.LocalEndpoint).Port;
+        portFinder.Stop();
+
+        using System.Net.HttpListener listener = new();
+        listener.Prefixes.Add($"http://127.0.0.1:{port}/");
+        listener.Start();
+        int accepted = 0;
+        _ = Task.Run(async () =>
+        {
+            while (listener.IsListening)
+            {
+                try
+                {
+                    System.Net.HttpListenerContext context = await listener.GetContextAsync();
+                    await context.AcceptWebSocketAsync(null);
+                    Interlocked.Increment(ref accepted);
+                }
+                catch (Exception)
+                {
+                    return;
+                }
+            }
+        });
+
+        using TextWebSocketClient client = new(1024);
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+        await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+        await client.CloseAsync(cts.Token);
+        await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+        await client.SendAsync("after reconnect", cts.Token);
+
+        Assert.AreEqual(2, Volatile.Read(ref accepted));
+        await client.CloseAsync(cts.Token);
+        listener.Stop();
+    }
+
+    [TestMethod]
+    public async Task OpenAsync_WhenConnectFails_Throws_AndALaterAttemptCanSucceed()
+    {
+        System.Net.Sockets.TcpListener portFinder = new(System.Net.IPAddress.Loopback, 0);
+        portFinder.Start();
+        int closedPort = ((System.Net.IPEndPoint) portFinder.LocalEndpoint).Port;
+        portFinder.Stop();
+
+        using TextWebSocketClient client = new(1024);
+        using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+        await Assert.ThrowsAsync<System.Net.WebSockets.WebSocketException>(() => client.OpenAsync($"ws://127.0.0.1:{closedPort}/", cts.Token));
+
+        // The failed attempt must not leave a half-open socket behind.
+        await Assert.ThrowsAsync<ArgumentNullException>(() => client.SendAsync("nothing is open", cts.Token));
+
+        (System.Net.HttpListener listener, int port, TaskCompletionSource<System.Net.WebSockets.WebSocket> serverTask) = await StartServerAsync();
+        using (listener)
+        {
+            await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+            await serverTask.Task.WaitAsync(cts.Token);
+            await client.SendAsync("connected now", cts.Token);
+            listener.Stop();
+        }
+    }
+
+    [TestMethod]
+    public async Task SendAsync_AfterClose_Throws()
+    {
+        (System.Net.HttpListener listener, int port, TaskCompletionSource<System.Net.WebSockets.WebSocket> serverTask) = await StartServerAsync();
+        using (listener)
+        {
+            using TextWebSocketClient client = new(1024);
+            using CancellationTokenSource cts = new(TimeSpan.FromSeconds(10));
+            await client.OpenAsync($"ws://127.0.0.1:{port}/", cts.Token);
+            await serverTask.Task.WaitAsync(cts.Token);
+            await client.CloseAsync(cts.Token);
+
+            await Assert.ThrowsAsync<ArgumentNullException>(() => client.SendAsync("too late", cts.Token));
+            listener.Stop();
+        }
+    }
 }
